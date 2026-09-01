@@ -1,0 +1,9 @@
+# No external dependencies required
+# Maturity Monitor uses Python standard library only:
+# - urllib.request (HTTP checks)
+# - subprocess (git activity)
+# - json (parsing)
+# - dataclasses (data structures)
+# - pathlib (file operations)
+#
+# Compatible with Python 3.7+
