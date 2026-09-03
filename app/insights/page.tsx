@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import InsightsDesk from "@/components/insights/InsightsDesk";
+import AIAgentsDesk from "@/components/ai-agents/AIAgentsDesk";
 
 export const metadata: Metadata = {
-  title: "HawkxAI · Insights",
-  description: "Trace a particular name to its origin page, family, and oldest dated receipt.",
+  title: "AI Agents Insights | HawkxAI",
+  description: "Deep insights, trends, and analysis for AI agents and LLM models.",
 };
 
 export default function InsightsPage() {
-  return <InsightsDesk />;
+  return <AIAgentsDesk />;
 }

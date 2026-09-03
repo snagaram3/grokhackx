@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import ResearchDesk from "@/components/research/ResearchDesk";
+import AIAgentsDesk from "@/components/ai-agents/AIAgentsDesk";
 
 export const metadata: Metadata = {
-  title: "HawkxAI · Research",
-  description: "Deep topic research across Wikipedia, PubMed, arXiv, USPTO, web, HN, Reddit, and X.",
+  title: "AI Market Research | HawkxAI",
+  description: "Market analysis, adoption trends, and competitive research for AI agents.",
 };
 
 export default function ResearchPage() {
-  return <ResearchDesk />;
+  return <AIAgentsDesk />;
 }
