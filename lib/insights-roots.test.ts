@@ -8,8 +8,12 @@ import {
   keepCategory,
   measureOriginLag,
   oldestReceipt,
+  patentsFromLegacy,
+  patentsFromV2,
   pickFirstRecord,
   pickSenseTitle,
+  resolveInception,
+  wikidataTime,
   yearIso,
 } from "./insights-roots";
 import type { RootReceipt } from "./insights-types";
@@ -36,8 +40,10 @@ test("oldestReceipt ignores undated rows and picks the earliest ISO", () => {
   const a = rec({ title: "new", url: "https://a.test/n", at: "2024-01-01T00:00:00Z" });
   const b = rec({ title: "old", url: "https://a.test/o", at: "1997-06-01T00:00:00Z" });
   const none = rec({ title: "undated", url: "https://a.test/u", at: null });
+  const junk = rec({ title: "junk", url: "https://a.test/j", at: "not-a-date" });
   assert.equal(oldestReceipt([a, none, b])?.title, "old");
   assert.equal(oldestReceipt([none]), null);
+  assert.equal(oldestReceipt([junk, a])?.title, "new");
 });
 
 test("extractBirthYear and parent year read claimed origin without inventing a WHY", () => {
@@ -188,6 +194,100 @@ test("assembleRoots prefers a product grant as the root when it predates the wik
   });
   assert.equal(trace.firstRecord?.source, "uspto");
   assert.match(trace.layers.find((l) => l.kind === "first-record")?.label ?? "", /product grant/);
+});
+
+test("wikidataTime reads +YYYY-MM-DD and rejects out-of-range years", () => {
+  assert.equal(wikidataTime("+1982-01-01T00:00:00Z"), "1982-01-01T00:00:00.000Z");
+  assert.equal(wikidataTime("-0500-01-01T00:00:00Z"), null);
+  assert.equal(wikidataTime("+2201-01-01T00:00:00Z"), null);
+  assert.equal(wikidataTime("sometime in 1982"), null);
+  assert.equal(wikidataTime(undefined), null);
+});
+
+test("patentsFromLegacy and patentsFromV2 skip incomplete rows and keep dates", () => {
+  const legacy = patentsFromLegacy({
+    patents: [
+      { patent_number: "4501234", patent_title: "Camry body", patent_date: "1983-04-01", patent_abstract: "A body." },
+      { patent_number: "999", patent_title: "" },
+      { patent_title: "no number" },
+    ],
+  });
+  assert.equal(legacy.length, 1);
+  assert.equal(legacy[0]?.url, "https://patents.google.com/patent/US4501234");
+  assert.equal(legacy[0]?.at, "1983-04-01");
+  assert.equal(legacy[0]?.source, "uspto");
+
+  const v2 = patentsFromV2({
+    patents: [
+      { patent_id: "US4501234", patent_title: "Camry body structure", patent_date: "1983-04-01" },
+      { patent_id: "", patent_title: "empty id" },
+    ],
+  });
+  assert.equal(v2.length, 1);
+  assert.equal(v2[0]?.url, "https://patents.google.com/patent/US4501234");
+});
+
+test("resolveInception prefers Wikidata, then cache, then category year, then extract", () => {
+  const wiki = {
+    title: "Toyota Camry",
+    url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+    extract: "The Toyota Camry has been sold internationally since 1982.",
+    senses: [],
+  };
+  const wikiRoot = { firstAt: "2004-06-20T00:00:00Z", firstEditor: null, parents: ["Cars introduced in 1982"] };
+  const cached = {
+    wikiTitle: wiki.title,
+    wikiUrl: wiki.url,
+    firstAt: wikiRoot.firstAt,
+    firstEditor: null,
+    parents: wikiRoot.parents,
+    patents: [] as RootReceipt[],
+    inceptionAt: "1983-01-01T00:00:00.000Z",
+    inceptionSource: "extract" as const,
+    inceptionUrl: wiki.url,
+    cachedAt: "2026-08-29T00:00:00.000Z",
+  };
+
+  const fromWiki = resolveInception(wiki, wikiRoot, { at: "1982-01-01T00:00:00.000Z", url: "https://www.wikidata.org/wiki/Q39973" }, cached);
+  assert.equal(fromWiki.source, "wikidata");
+  assert.equal(fromWiki.at, "1982-01-01T00:00:00.000Z");
+
+  const fromCache = resolveInception(wiki, wikiRoot, null, cached);
+  assert.equal(fromCache.source, "extract");
+  assert.equal(fromCache.at, "1983-01-01T00:00:00.000Z");
+
+  const fromCategory = resolveInception(wiki, wikiRoot, null, null);
+  assert.equal(fromCategory.source, "category");
+  assert.equal(fromCategory.at, yearIso(1982));
+
+  const fromExtract = resolveInception(wiki, { firstAt: null, firstEditor: null, parents: ["Compact cars"] }, null, null);
+  assert.equal(fromExtract.source, "extract");
+  assert.equal(fromExtract.at, yearIso(1982));
+
+  const none = resolveInception(null, null, null, null);
+  assert.deepEqual(none, { at: null, source: null, url: null });
+});
+
+test("assembleRoots uses a DuckDuckGo abstract when Wikipedia is offline", () => {
+  const trace = assembleRoots({
+    query: "Camry",
+    wiki: null,
+    wikiRoot: null,
+    abstract: {
+      title: "Toyota Camry",
+      url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+      snippet: "The Toyota Camry is an automobile sold internationally by Toyota since 1982.",
+    },
+    dated: [],
+    tape: [],
+    ...emptyInception,
+    degraded: ["wikipedia offline"],
+  });
+  assert.equal(trace.thin, false);
+  assert.equal(trace.originTitle, "Toyota Camry");
+  assert.match(trace.originExtract ?? "", /automobile/);
+  assert.ok(trace.layers.some((l) => l.kind === "origin"));
+  assert.ok(trace.degraded.includes("wikipedia offline"));
 });
 
 test("assembleRoots stays thin when there is no extract and no dated record", () => {

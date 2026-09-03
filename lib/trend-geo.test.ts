@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildTrendPins, examplePinId, parseUrlGeo, postGeo, receiptPinId, validGeo } from "./trend-geo";
+import { buildTrendPins, examplePinId, locatedReceipts, parseUrlGeo, postGeo, receiptPinId, validGeo } from "./trend-geo";
 import { topoLandToMultiPolygon } from "./world-land";
 import type { Topic } from "./types";
 
@@ -21,7 +21,11 @@ test("parseUrlGeo reads Open-Meteo hash coords and rejects junk", () => {
   assert.equal(geo?.lat, 35.68);
   assert.equal(geo?.lon, 139.69);
   assert.equal(parseUrlGeo("https://news.ycombinator.com/item?id=1", "HN"), null);
+  assert.equal(parseUrlGeo("https://open-meteo.com/en/docs#latitude=35.68&longitude=139.69", "   "), null);
   assert.equal(validGeo(91, 0), false);
+  assert.equal(validGeo(90, 180), true);
+  assert.equal(validGeo(0, 181), false);
+  assert.equal(validGeo(Number.NaN, 0), false);
 });
 
 test("buildTrendPins keeps USGS coords and ignores titles without a place", () => {
@@ -128,6 +132,83 @@ test("stored geo wins over a conflicting URL, but invalid stored geo falls back 
 test("example and receipt pin ids stay distinct at the same 0.1° cell", () => {
   assert.equal(receiptPinId(35.68, 139.69), "35.7,139.7");
   assert.equal(examplePinId(35.68, 139.69), "ex:35.7,139.7");
+});
+
+test("buildTrendPins merges nearby receipts and keeps the shorter title", () => {
+  const tokyo = topic("Tokyo weather", [
+    {
+      platform: "public",
+      title: "Tokyo 28°C wind 4 — long forecast copy",
+      url: "https://open-meteo.com/en/docs#latitude=35.68&longitude=139.69",
+      score: 20,
+      createdAt: "2026-08-29T00:00:00.000Z",
+      sourceApi: "Open-Meteo",
+      geo: { lat: 35.68, lon: 139.69, label: "Tokyo" },
+    },
+  ]);
+  const nearby = topic("Kanto heat", [
+    {
+      platform: "public",
+      title: "Tokyo heat",
+      url: "https://api.weather.gov/alerts/tokyo",
+      score: 40,
+      createdAt: "2026-08-29T01:00:00.000Z",
+      sourceApi: "National Weather Service",
+      geo: { lat: 35.71, lon: 139.72, label: "Tokyo" },
+    },
+  ]);
+  const pins = buildTrendPins([tokyo, nearby]);
+  const receipt = pins.find((p) => p.kind === "receipt");
+  assert.equal(pins.filter((p) => p.kind === "receipt").length, 1);
+  assert.equal(receipt?.title, "Tokyo heat");
+  assert.equal(receipt?.weight, 60);
+  assert.ok(receipt?.topicIds.includes("tokyo-weather"));
+  assert.ok(receipt?.topicIds.includes("kanto-heat"));
+});
+
+test("locatedReceipts dedups by URL, sorts by score, and drops unlocated posts", () => {
+  const located = locatedReceipts([
+    {
+      platform: "public",
+      title: "weak",
+      url: "https://earthquake.usgs.gov/earthquakes/eventpage/us1",
+      score: 10,
+      createdAt: "2026-08-29T00:00:00.000Z",
+      sourceApi: "USGS",
+      geo: { lat: -23.1, lon: 179.2, label: "Fiji" },
+    },
+    {
+      platform: "public",
+      title: "stronger same url",
+      url: "https://earthquake.usgs.gov/earthquakes/eventpage/us1",
+      score: 90,
+      createdAt: "2026-08-29T00:00:00.000Z",
+      sourceApi: "USGS",
+      geo: { lat: -23.1, lon: 179.2, label: "Fiji" },
+    },
+    {
+      platform: "hn",
+      title: "Toyota plans Camry recall",
+      url: "https://news.ycombinator.com/item?id=1",
+      score: 99,
+      createdAt: "2026-08-29T00:00:00.000Z",
+    },
+    {
+      platform: "public",
+      title: "Tokyo 28°C",
+      url: "https://open-meteo.com/en/docs#latitude=35.68&longitude=139.69",
+      score: 40,
+      createdAt: "2026-08-29T00:00:00.000Z",
+      sourceApi: "Open-Meteo",
+    },
+  ]);
+  assert.equal(located.length, 2);
+  assert.equal(located[0]?.sourceApi, "Open-Meteo");
+  assert.equal(located[1]?.title, "weak");
+  assert.equal(
+    located.some((p) => p.url.includes("ycombinator")),
+    false,
+  );
 });
 
 test("topoLandToMultiPolygon stitches a one-arc square", () => {

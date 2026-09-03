@@ -41,7 +41,7 @@ export function rootCacheId(query: string, sense = ""): string {
   return `${slug(query)}::${slug(sense) || "_"}`;
 }
 
-function asCached(raw: unknown): CachedRoot | null {
+export function asCached(raw: unknown): CachedRoot | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const patents = Array.isArray(o.patents)

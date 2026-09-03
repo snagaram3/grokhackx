@@ -276,8 +276,11 @@ export function attachPublicPosts(topics: Topic[], publicPosts: Post[]): Topic[]
     .slice(0, 24);
   for (const p of leftover) {
     const topic = hydrate(p.title, { x: [], reddit: [], hn: [], public: [p] });
-    // Keep leftover public singletons unique — NWS titles often share a long prefix.
-    topic.id = slug(`${p.sourceApi || p.platform}-${p.url}`).slice(0, 48) || topic.id;
+    // Keep leftover public singletons unique — NWS titles share a long prefix,
+    // and slug() would otherwise keep the shared head of source+url.
+    const src = (p.sourceApi || p.platform).replace(/\s+/g, "").slice(0, 8);
+    const tail = p.url.replace(/^https?:\/\//i, "").slice(-28);
+    topic.id = slug(`${src}-${tail}`) || topic.id;
     topics.push(topic);
   }
   return topics;
