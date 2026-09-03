@@ -7,7 +7,6 @@ import {
   DeskNav,
   GhostButton,
   HomeMark,
-  PrimaryButton,
   StatusChip,
 } from "@/components/shell/DeskChrome";
 import DeskWorkspace from "@/components/shell/DeskWorkspace";

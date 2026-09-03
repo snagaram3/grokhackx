@@ -182,7 +182,6 @@ function generateMetrics(agent: Omit<AIAgent, "metrics" | "lastUpdated">): AIAge
   
   // New agents trend more
   const isNew = ageMonths < 6;
-  const isOpenSource = agent.pricing.tier === "free";
   
   let velocity: AIAgentMetrics["velocity"] = "stable";
   let trending = false;
@@ -247,7 +246,7 @@ export class AIAgentsStore {
       agents = agents.filter((a) => a.metrics.trending === filter.trending);
     }
     if (filter?.minMentions !== undefined) {
-      agents = agents.filter((a) => a.metrics.mentions >= filter.minMentions);
+      agents = agents.filter((a) => a.metrics.mentions >= filter.minMentions!);
     }
     if (filter?.pricingTier) {
       agents = agents.filter((a) => a.pricing.tier === filter.pricingTier);
