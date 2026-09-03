@@ -333,12 +333,20 @@ export function improvisationsFor(payload: TrendsPayload, briefs: BoosterTopicBr
     next: "On Watch inspect, mark occupiers Official / Occupied / Ignore. Camry first. Do not invent tags.",
   });
 
-  if (payload.degraded.some((d) => d.includes("x"))) {
+  if (payload.degraded.some((d) => d.includes("x") && !d.includes("google trends"))) {
     items.push({
       priority: "P0",
       title: "Stabilize X ingest",
       why: "Hashtag and QR campaigns mostly start on X. Offline X blinds the booster.",
-      next: "Keep Gemini Google Search for X mentions, add a Google Trends fallback so capture still runs.",
+      next: "Keep Gemini Google Search for X mentions. Google Trends RSS already fills public when X is empty.",
+    });
+  }
+  if (payload.degraded.some((d) => d.includes("google trends"))) {
+    items.push({
+      priority: "P1",
+      title: "Google Trends RSS is a thin X stand-in",
+      why: "Daily search heat is not an X post. Phrase lookups stay empty unless the name is actually trending.",
+      next: "Keep Gemini Google Search for X. Do not stamp Trends receipts as X.",
     });
   }
   if (payload.degraded.some((d) => d.includes("reddit"))) {
@@ -370,7 +378,7 @@ export function improvisationsFor(payload: TrendsPayload, briefs: BoosterTopicBr
       priority: "P0",
       title: "QR image decode, not just QR-shaped URLs",
       why: "Campaigns hide the payload in images. Text regex cannot see a poster QR.",
-      next: "Raise the decode cap once Camry posters land as image receipts.",
+      next: "Cap is 8 image fetches per ingest. Keep tagging Camry posters when they land — do not invent QR payloads.",
     });
   }
   if (bubbles >= 3) {

@@ -5,6 +5,7 @@ import {
   collectorAgent,
   collectorSummary,
   healthFrom,
+  mergedPublicPosts,
   reviewerAgent,
   validatorAgent,
   whyAgent,
@@ -65,7 +66,8 @@ async function runPipeline(
     collected.x,
   ]);
   if (xR.ok) attachXPosts(clustered, xR.posts);
-  if (publicR.ok) attachPublicPosts(clustered, publicR.posts);
+  const publicPosts = mergedPublicPosts(xR, publicR);
+  if (publicPosts.length) attachPublicPosts(clustered, publicPosts);
   const { sources, degraded } = healthFrom([xR, redditR, hnR, publicR]);
   markPlatformPulls(sources);
 
@@ -87,9 +89,9 @@ async function runPipeline(
     degraded,
     pipeline,
     publicApis: publicR.publicApis,
-    located: locatedReceipts(publicR.posts),
+    located: locatedReceipts(publicPosts),
     examplePoi: exampleR.posts,
-    poiCompare: compareExamplePoi(exampleR.places, locatedReceipts(publicR.posts), {
+    poiCompare: compareExamplePoi(exampleR.places, locatedReceipts(publicPosts), {
       collectedAt: exampleR.collectedAt,
       datasetSha: exampleR.datasetSha,
       liveRefresh: exampleR.liveRefresh,
@@ -119,7 +121,7 @@ async function runPlug(
     intentPromise,
     collectExamplePoi(geo.city),
   ]);
-  const posts = [...redditR.posts, ...hnR.posts, ...xR.posts, ...publicR.posts];
+  const posts = [...redditR.posts, ...hnR.posts, ...xR.posts, ...mergedPublicPosts(xR, publicR)];
   let clustered = plugTopicFromPosts(topic, posts, intent);
   const used = new Set(clustered.map((t) => t.id));
   const tape = cachePeek<TrendsPayload>(LAST_KEY)?.topics ?? [];
@@ -138,6 +140,7 @@ async function runPlug(
 
   const lead = validated.topics[0] ?? null;
   const sentiment = lead ? buildSentiment(lead) : null;
+  const publicPosts = mergedPublicPosts(xR, publicR);
   const payload: TrendsPayload = {
     topics: validated.topics,
     updatedAt: new Date().toISOString(),
@@ -145,9 +148,9 @@ async function runPlug(
     degraded,
     pipeline,
     publicApis: publicR.publicApis,
-    located: locatedReceipts(publicR.posts),
+    located: locatedReceipts(publicPosts),
     examplePoi: exampleR.posts,
-    poiCompare: compareExamplePoi(exampleR.places, locatedReceipts(publicR.posts), {
+    poiCompare: compareExamplePoi(exampleR.places, locatedReceipts(publicPosts), {
       collectedAt: exampleR.collectedAt,
       datasetSha: exampleR.datasetSha,
       liveRefresh: exampleR.liveRefresh,

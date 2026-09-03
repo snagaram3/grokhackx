@@ -5,7 +5,7 @@ description: >-
   and writes a one-page VC proposal covering the core problem, solution, live
   features, and future features. Use when the user mentions smartsalesguy,
   venture capital, VCs, one-pager, investor memo, fundraising, pitch, or
-  selling HawkxAI / grokhackx.
+  selling HawkxAI.
 ---
 
 # SmartSalesGuy

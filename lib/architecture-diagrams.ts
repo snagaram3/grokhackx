@@ -2,7 +2,7 @@
 
 export const DEPLOY_GRAPH = `flowchart LR
   gh["GitHub<br/>snagaram3/grokhackx"]
-  vercel["Vercel project<br/>hawk-ai4/grokhackx"]
+  vercel["Vercel hawkxai.vercel.app<br/>Cloud Run hawkxai also live"]
   fn["Next.js 14 functions<br/>region iad1"]
   env["Env: GOOGLE_API_KEY<br/>FLEET_URL<br/>YOUTUBE_API_KEY<br/>TREND_DB_*"]
   sql["Cloud SQL Postgres 16<br/>hawkxai-trends · us-east4<br/>35.245.139.208:5432 TLS"]
@@ -74,19 +74,22 @@ export const ENV_GRAPH = `flowchart TB
 `;
 
 export const FLEET_GRAPH = `flowchart LR
-  marketer[Marketer] --> footprint["Footprint /footprint"]
+  marketer[Marketer] --> phrase["Phrase plug"]
+  phrase --> footprint["Cloud Run desk /footprint"]
   footprint -->|"POST /api/fleet"| deskApi["Next.js POST /api/fleet"]
-  trendsTab["Trends GET /api/trends"] --> deskCollectors["Desk collectors"]
+  trendsTab["GET /api/trends tape"] -.-> deskCollectors["Desk collectors"]
   deskApi --> cloudRun["Cloud Run hawkxai-fleet"]
-  cloudRun --> adk["ADK ingest_agent Gemini 3.5"]
-  adk --> hnTool["collect_hn"]
-  adk --> apiTool["collect_public_apis"]
-  adk --> scoreTool["score_and_dedup"]
-  hnTool --> gcs["GCS snapshot JSON"]
+  cloudRun --> adk["ADK hawkxai_ingest<br/>Gemini 3.5 Flash"]
+  adk --> hnTool["collect_hn<br/>HN Algolia"]
+  adk --> apiTool["collect_public_apis<br/>Wiki News NHTSA"]
+  adk --> scoreTool["score_and_dedup<br/>Gemini ranks existing"]
+  hnTool --> gcs["GCS snapshots"]
   apiTool --> gcs
   scoreTool --> gcs
   gcs --> deskApi
   deskApi --> footprint
+  gcs --> lineage["tool + collectedAt"]
+  lineage --> footprint
 `;
 
 export const ML_GRAPH = `flowchart TB
@@ -111,7 +114,7 @@ export const ARCHITECTURE_SECTIONS = [
   {
     id: "deploy",
     title: "Deploy path",
-    caption: "GitHub is the source. Vercel hawk-ai4/grokhackx builds Next.js 14 in iad1 and aliases hawkxai.com. Functions reach Cloud SQL over TLS on the public IP.",
+    caption: "GitHub snagaram3/grokhackx is the source. Vercel hawkxai.vercel.app is production; Cloud Run hawkxai is also live. Functions reach Cloud SQL over TLS on the public IP.",
     chart: DEPLOY_GRAPH,
   },
   {
@@ -141,7 +144,7 @@ export const ARCHITECTURE_SECTIONS = [
   {
     id: "fleet",
     title: "Ingest fleet",
-    caption: "Footprint POSTs a phrase to Cloud Run. ADK fans out HN and public APIs, scores existing titles, writes a GCS snapshot. GET /api/trends is untouched.",
+    caption: "Footprint POSTs a phrase to Cloud Run hawkxai-fleet. ADK hawkxai_ingest (Gemini 3.5 Flash) fans out HN and public APIs, scores existing titles, writes GCS. GET /api/trends is untouched. Each receipt keeps tool + collectedAt.",
     chart: FLEET_GRAPH,
   },
   {
@@ -153,7 +156,7 @@ export const ARCHITECTURE_SECTIONS = [
   {
     id: "lineage",
     title: "AutoLineage",
-    caption: "RudriQ extracts receipts. AutoLineage records which collect step produced each one (tool + collectedAt). Visible on the desk and in the generated handbook.",
+    caption: "RudriQ extracts receipts. AutoLineage records which collect step produced each one (tool + collectedAt). Snapshots persist those fields on Cloud SQL receipts. Visible on the desk and in the generated handbook.",
     chart: LINEAGE_GRAPH,
   },
 ] as const;

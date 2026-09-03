@@ -156,7 +156,7 @@ def render() -> Path:
                 _read("app/api/fleet/route.ts")[:2000],
                 "```",
                 "",
-                "## Desk API (pre-existing, do not break)",
+                "## Desk API (do not break GET /api/trends)",
                 "```",
                 _read("app/api/trends/route.ts")[:1200],
                 "```",
