@@ -8,7 +8,7 @@ const DESKS: { id: DeskId; href: string; label: string; blurb: string }[] = [
   { id: "trends", href: "/", label: "Trends", blurb: "What's printing now" },
   { id: "watchlist", href: "/watchlist", label: "Watch", blurb: "Look up names you track" },
   { id: "footprint", href: "/footprint", label: "Footprint", blurb: "Look up a phrase" },
-  { id: "insights", href: "/insights", label: "Insights", blurb: "Look up a campaign" },
+  { id: "insights", href: "/insights", label: "Insights", blurb: "Trace a name to its root" },
   { id: "research", href: "/research", label: "Research", blurb: "Look up a topic" },
 ];
 

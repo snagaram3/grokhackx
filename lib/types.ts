@@ -2,6 +2,12 @@ export const PLATFORMS = ["x", "reddit", "hn", "public"] as const;
 
 export type Platform = (typeof PLATFORMS)[number];
 
+export interface PostGeo {
+  lat: number;
+  lon: number;
+  label: string;
+}
+
 export interface Post {
   platform: Platform;
   title: string;
@@ -9,6 +15,8 @@ export interface Post {
   score: number;
   createdAt: string;
   sourceApi?: string;
+  /** Proven coordinates from the source. Never geocoded from a title. */
+  geo?: PostGeo;
   /** AutoLineage: which collect step produced this receipt. */
   tool?: string;
   /** AutoLineage: when that collect step wrote the receipt. */
@@ -61,6 +69,92 @@ export interface PublicApiIngest {
   topic?: string;
 }
 
+export type ExamplePoiIndustry =
+  | "technology"
+  | "finance"
+  | "healthcare"
+  | "retail"
+  | "automotive"
+  | "real-estate"
+  | "entertainment"
+  | "education"
+  | "hospitality"
+  | "manufacturing";
+
+export interface ExamplePoiHop {
+  examplePinId: string;
+  livePinId: string;
+}
+
+export interface ExamplePoiPair {
+  poiId: string;
+  poiName: string;
+  poiCity: string;
+  industry: ExamplePoiIndustry;
+  liveTitle: string;
+  liveUrl: string;
+  liveSource: string;
+  km: number;
+  poiLat: number;
+  poiLon: number;
+  liveLat: number;
+  liveLon: number;
+  examplePinId: string;
+  livePinId: string;
+}
+
+export interface ExamplePoiIndustryCall {
+  category: ExamplePoiIndustry;
+  poiCount: number;
+  liveNear: number;
+  nearestKm: number | null;
+  sources: string[];
+  factors: { id: string; name: string; weight: number; value: number; unit: string; trend: "up" | "down" | "stable" }[];
+  constraints: {
+    id: string;
+    name: string;
+    threshold: number;
+    current: number;
+    met: boolean;
+    impact: "critical" | "high" | "medium" | "low";
+  }[];
+  variables: {
+    id: string;
+    name: string;
+    type: "numeric" | "boolean" | "categorical";
+    value: string | number | boolean;
+    impact: number;
+  }[];
+  outlook: ForecastOutlook;
+  confidence: number;
+  thin: boolean;
+  analysis: string;
+  /** Last hourly liveNear counts, oldest → newest. */
+  window: number[];
+  prediction: {
+    headline: string;
+    nextAction: string;
+    timeframe: string;
+    confidence: number;
+  };
+}
+
+export interface ExamplePoiCompare {
+  dataset: string;
+  license: string;
+  collectedAt: string;
+  datasetSha: string | null;
+  exampleCount: number;
+  locatedCount: number;
+  pairCount: number;
+  pairs: ExamplePoiPair[];
+  industries: ExamplePoiIndustryCall[];
+  thin: boolean;
+  analysis: string;
+  /** `hub` when the Hugging Face CSV streamed this process; otherwise the vendored sample. */
+  liveRefresh: "hub" | "sample";
+}
+
 export interface TrendsPayload {
   topics: Topic[];
   updatedAt: string;
@@ -68,6 +162,12 @@ export interface TrendsPayload {
   degraded: string[];
   pipeline?: string;
   publicApis?: PublicApiIngest;
+  /** Receipts that already carry coordinates — plotted on the world under the mind map. */
+  located?: Post[];
+  /** Hugging Face travel places, labeled Example POI — not live tape. */
+  examplePoi?: Post[];
+  /** Example POI vs located public tape, scored per industry. */
+  poiCompare?: ExamplePoiCompare;
   plugged?: string;
   query?: QueryInsight;
 }
@@ -182,6 +282,7 @@ export interface LeafForecast {
   analysis: string;
   evidence: string;
   thin: boolean;
+  model?: { name: "histgb" | "stump"; samples: number };
 }
 
 export interface MindNode {
@@ -438,4 +539,8 @@ export interface PoiInsight {
   rankScore: number;
   /** Last overlap counts, oldest → newest. */
   window: number[];
+  /** How the next-window call was made. Stump until HistGB has enough transitions. */
+  model?: { name: "histgb" | "stump"; samples: number };
+  /** Gold official+occupied inspect tags on this name. Occupancy HistGB needs 20. */
+  goldTags?: number;
 }

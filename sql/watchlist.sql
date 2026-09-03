@@ -47,6 +47,18 @@ CREATE TABLE IF NOT EXISTS poi_labels (
   tag TEXT NOT NULL CHECK (tag IN ('official','occupied','ignore')),
   PRIMARY KEY (entity_id, url)
 );
+CREATE TABLE IF NOT EXISTS poi_labels (
+  entity_id TEXT NOT NULL,
+  url TEXT NOT NULL,
+  tag TEXT NOT NULL CHECK (tag IN ('official','occupied','ignore')),
+  PRIMARY KEY (entity_id, url)
+);
+CREATE TABLE IF NOT EXISTS poi_models (
+  id TEXT PRIMARY KEY,
+  payload JSONB NOT NULL,
+  samples INT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- Starred trend prints + measured snapshots. Survives a cold start when TREND_DB_* is set.
 CREATE TABLE IF NOT EXISTS tape_watch (
@@ -54,3 +66,14 @@ CREATE TABLE IF NOT EXISTS tape_watch (
   payload JSONB NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Durable Insights roots: Wikipedia first revision, patents, Wikidata inception.
+CREATE TABLE IF NOT EXISTS insight_roots (
+  id TEXT PRIMARY KEY,
+  query TEXT NOT NULL,
+  sense TEXT NOT NULL DEFAULT '',
+  payload JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS insight_roots_query_idx ON insight_roots (query);
+

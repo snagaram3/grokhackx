@@ -1,0 +1,211 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { mergePatents } from "./insights-store";
+import {
+  assembleRoots,
+  extractBirthYear,
+  inceptionFromParents,
+  keepCategory,
+  measureOriginLag,
+  oldestReceipt,
+  pickFirstRecord,
+  pickSenseTitle,
+  yearIso,
+} from "./insights-roots";
+import type { RootReceipt } from "./insights-types";
+
+function rec(partial: Partial<RootReceipt> & Pick<RootReceipt, "title" | "url">): RootReceipt {
+  return { source: "web", at: null, snippet: partial.title, ...partial };
+}
+
+const emptyInception = {
+  inceptionAt: null as string | null,
+  inceptionSource: null as null,
+  inceptionUrl: null as string | null,
+};
+
+test("keepCategory drops wiki housekeeping and keeps family strata", () => {
+  assert.equal(keepCategory("Category:Toyota vehicles"), true);
+  assert.equal(keepCategory("Compact cars"), true);
+  assert.equal(keepCategory("All stub articles"), false);
+  assert.equal(keepCategory("Wikipedia articles needing cleanup"), false);
+  assert.equal(keepCategory("CS1 errors"), false);
+});
+
+test("oldestReceipt ignores undated rows and picks the earliest ISO", () => {
+  const a = rec({ title: "new", url: "https://a.test/n", at: "2024-01-01T00:00:00Z" });
+  const b = rec({ title: "old", url: "https://a.test/o", at: "1997-06-01T00:00:00Z" });
+  const none = rec({ title: "undated", url: "https://a.test/u", at: null });
+  assert.equal(oldestReceipt([a, none, b])?.title, "old");
+  assert.equal(oldestReceipt([none]), null);
+});
+
+test("extractBirthYear and parent year read claimed origin without inventing a WHY", () => {
+  assert.equal(extractBirthYear("The Toyota Camry has been sold internationally since 1982."), 1982);
+  assert.equal(extractBirthYear("first launched in 1997 as a compact."), 1997);
+  assert.equal(extractBirthYear("A car with 305000 miles."), null);
+  assert.equal(inceptionFromParents(["Toyota vehicles", "Cars introduced in 1982"]), 1982);
+  assert.equal(inceptionFromParents(["Compact cars"]), null);
+});
+
+test("pickSenseTitle forks Camry vs Camryn Manheim", () => {
+  const senses = [
+    { title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" },
+    { title: "Camryn Manheim", url: "https://en.wikipedia.org/wiki/Camryn_Manheim" },
+  ];
+  assert.equal(pickSenseTitle(senses, null)?.title, "Toyota Camry");
+  assert.equal(pickSenseTitle(senses, "camryn-manheim")?.title, "Camryn Manheim");
+  assert.equal(pickSenseTitle(senses, "Camryn Manheim")?.title, "Camryn Manheim");
+});
+
+test("pickFirstRecord prefers an older USPTO grant over a later wiki edit", () => {
+  const wiki = rec({
+    title: "wiki 2004",
+    url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+    source: "wikipedia",
+    at: "2004-06-20T00:00:00Z",
+  });
+  const patent = rec({
+    title: "Camry body grant",
+    url: "https://patents.google.com/patent/US4501234",
+    source: "uspto",
+    at: "1983-04-01T00:00:00Z",
+  });
+  const laterPaper = rec({
+    title: "Camry paper",
+    url: "https://pubmed.example/1",
+    source: "pubmed",
+    at: "2018-01-01T00:00:00Z",
+  });
+  assert.equal(pickFirstRecord(wiki, [laterPaper, patent])?.source, "uspto");
+  assert.equal(pickFirstRecord(wiki, [laterPaper])?.source, "wikipedia");
+});
+
+test("measureOriginLag is a year gap, never a story", () => {
+  const lag = measureOriginLag(yearIso(1982), "wikidata", "https://www.wikidata.org/wiki/Q39973", "2004-06-20T04:15:36Z");
+  assert.equal(lag?.lagYears, 22);
+  assert.equal(lag?.claimedSource, "wikidata");
+  assert.equal(measureOriginLag(yearIso(2004), "extract", null, "2004-06-20T00:00:00Z"), null);
+});
+
+test("mergePatents keeps the older grant per url", () => {
+  const older = rec({ title: "a", url: "https://p.test/1", source: "uspto", at: "1983-01-01T00:00:00Z" });
+  const newer = rec({ title: "b", url: "https://p.test/1", source: "uspto", at: "1999-01-01T00:00:00Z" });
+  const extra = rec({ title: "c", url: "https://p.test/2", source: "uspto", at: "1991-01-01T00:00:00Z" });
+  const merged = mergePatents([newer], [older, extra]);
+  assert.equal(merged.length, 2);
+  assert.equal(merged.find((p) => p.url.endsWith("/1"))?.at, "1983-01-01T00:00:00Z");
+});
+
+test("assembleRoots builds a taproot: plug → origin → parent → first record, never invents WHY", () => {
+  const trace = assembleRoots({
+    query: "Camry",
+    wiki: {
+      title: "Toyota Camry",
+      url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+      extract: "The Toyota Camry is an automobile sold internationally by Toyota since 1982.",
+      senses: [
+        { title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" },
+        { title: "Camryn Manheim", url: "https://en.wikipedia.org/wiki/Camryn_Manheim" },
+      ],
+    },
+    wikiRoot: {
+      firstAt: "2003-02-01T00:00:00Z",
+      firstEditor: "editor",
+      parents: ["Toyota vehicles", "All articles", "Cars introduced in 1982"],
+    },
+    abstract: null,
+    dated: [
+      rec({
+        title: "Camry hybrid recall notice",
+        url: "https://pubmed.example/1",
+        source: "pubmed",
+        at: "2018-04-01T00:00:00Z",
+      }),
+      rec({
+        title: "camera sensor firmware",
+        url: "https://pubmed.example/2",
+        source: "pubmed",
+        at: "1990-01-01T00:00:00Z",
+      }),
+    ],
+    tape: [
+      rec({
+        title: "New Camry trim leaked",
+        url: "https://news.ycombinator.com/item?id=1",
+        source: "hn",
+        at: "2024-08-01T00:00:00Z",
+      }),
+    ],
+    ...emptyInception,
+    inceptionAt: yearIso(1982),
+    inceptionSource: "wikidata",
+    inceptionUrl: "https://www.wikidata.org/wiki/Q39973",
+    degraded: [],
+  });
+
+  assert.equal(trace.thin, false);
+  assert.equal(trace.originTitle, "Toyota Camry");
+  assert.equal(trace.senseId, "toyota-camry");
+  assert.equal(trace.senses.length, 2);
+  assert.match(trace.originExtract ?? "", /automobile/);
+  assert.deepEqual(
+    trace.parents.map((p) => p.label),
+    ["Toyota vehicles", "Cars introduced in 1982"],
+  );
+  assert.equal(trace.firstRecord?.source, "wikipedia");
+  assert.equal(trace.originLag?.lagYears, 21);
+  assert.ok(!trace.receipts.some((r) => /camera sensor/i.test(r.title)));
+  assert.deepEqual(
+    trace.layers.map((l) => l.kind),
+    ["plug", "sense", "tape", "origin", "parent", "first-record", "lag"],
+  );
+  assert.match(trace.layers.find((l) => l.kind === "lag")?.detail ?? "", /Measured gap/);
+});
+
+test("assembleRoots prefers a product grant as the root when it predates the wiki edit", () => {
+  const trace = assembleRoots({
+    query: "Camry",
+    wiki: {
+      title: "Toyota Camry",
+      url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+      extract: "The Toyota Camry is an automobile sold since 1982.",
+      senses: [{ title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" }],
+    },
+    wikiRoot: { firstAt: "2004-06-20T00:00:00Z", firstEditor: null, parents: [] },
+    abstract: null,
+    dated: [
+      rec({
+        title: "Camry body structure",
+        url: "https://patents.google.com/patent/US4501234",
+        source: "uspto",
+        at: "1983-04-01T00:00:00Z",
+      }),
+    ],
+    tape: [],
+    ...emptyInception,
+    degraded: [],
+  });
+  assert.equal(trace.firstRecord?.source, "uspto");
+  assert.match(trace.layers.find((l) => l.kind === "first-record")?.label ?? "", /product grant/);
+});
+
+test("assembleRoots stays thin when there is no extract and no dated record", () => {
+  const trace = assembleRoots({
+    query: "zzzxqnotathing",
+    wiki: null,
+    wikiRoot: null,
+    abstract: null,
+    dated: [],
+    tape: [],
+    ...emptyInception,
+    degraded: ["wikipedia offline"],
+  });
+  assert.equal(trace.thin, true);
+  assert.equal(trace.originExtract, null);
+  assert.equal(trace.firstRecord, null);
+  assert.equal(trace.originLag, null);
+  assert.equal(trace.layers.length, 1);
+  assert.equal(trace.layers[0]?.kind, "plug");
+  assert.ok(trace.degraded.includes("wikipedia offline"));
+});

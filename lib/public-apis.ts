@@ -76,12 +76,35 @@ function youtubeItems(data: unknown): Post[] {
     .filter((p): p is Post => Boolean(p));
 }
 
+function geoPoint(lat: number, lon: number, label: string): Post["geo"] | undefined {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return undefined;
+  const name = label.trim().slice(0, 80);
+  if (!name) return undefined;
+  return { lat, lon, label: name };
+}
+
+function firstLonLat(raw: unknown): [number, number] | null {
+  if (!Array.isArray(raw) || raw.length < 1) return null;
+  if (typeof raw[0] === "number" && typeof raw[1] === "number") {
+    return [raw[0], raw[1]];
+  }
+  return firstLonLat(raw[0]);
+}
+
+function geoFromCoords(raw: unknown, label: string): Post["geo"] | undefined {
+  const pair = firstLonLat(raw);
+  if (!pair) return undefined;
+  return geoPoint(pair[1], pair[0], label);
+}
+
 function post(
   title: string,
   url: string,
   score: number,
   sourceApi: string,
   createdAt?: string,
+  geo?: Post["geo"],
 ): Post {
   return stampPost(
     {
@@ -91,6 +114,7 @@ function post(
       score: Math.max(1, Math.round(score)),
       createdAt: createdAt ?? new Date().toISOString(),
       sourceApi,
+      geo,
     },
     "collect_public_apis",
   );
@@ -525,12 +549,14 @@ const FEEDS: Feed[] = [
           const f = asRecord(row);
           const props = asRecord(f?.properties);
           if (!props || !str(props.title)) return null;
+          const title = str(props.title);
           return post(
-            str(props.title),
+            title,
             str(props.url) || "https://earthquake.usgs.gov/",
             Math.min(100, num(props.mag) * 12),
             "USGS",
             num(props.time) ? new Date(num(props.time)).toISOString() : undefined,
+            geoFromCoords(asRecord(f?.geometry)?.coordinates, title),
           );
         })
         .filter((p): p is Post => Boolean(p))
@@ -547,13 +573,16 @@ const FEEDS: Feed[] = [
         .map((row) => {
           const e = asRecord(row);
           if (!e || !str(e.title)) return null;
+          const title = str(e.title);
           const link = str(asRecord(asArray(e.sources)[0])?.url) || str(e.link);
+          const geom0 = asRecord(asArray(e.geometry)[0]);
           return post(
-            str(e.title),
+            title,
             link || "https://eonet.gsfc.nasa.gov/",
             65,
             "NASA EONET",
-            str(e.geometry ? asRecord(asArray(e.geometry)[0])?.date : "") || undefined,
+            str(geom0?.date) || undefined,
+            geoFromCoords(geom0?.coordinates, title),
           );
         })
         .filter((p): p is Post => Boolean(p))
@@ -572,13 +601,22 @@ const FEEDS: Feed[] = [
         .map((row) => {
           const props = asRecord(asRecord(row)?.properties);
           if (!props || !str(props.headline)) return null;
+          const headline = str(props.headline);
           const sev =
             str(props.severity) === "Extreme" ? 95 : str(props.severity) === "Severe" ? 80 : 55;
           const href =
             str(props["@id"]) ||
             str(props.id).replace(/^urn:oid:/, "https://api.weather.gov/alerts/") ||
             "https://www.weather.gov/";
-          return post(str(props.headline), href, sev, "NWS", str(props.sent) || undefined);
+          const geom = asRecord(asRecord(row)?.geometry);
+          return post(
+            headline,
+            href,
+            sev,
+            "NWS",
+            str(props.sent) || undefined,
+            geoFromCoords(geom?.coordinates, headline),
+          );
         })
         .filter((p): p is Post => Boolean(p))
         .slice(0, PER_FEED);
@@ -612,6 +650,7 @@ const FEEDS: Feed[] = [
             40,
             "Open-Meteo",
             str(cur.time) || undefined,
+            geoPoint(spot.lat, spot.lon, spot.label),
           );
         })
         .filter((p): p is Post => Boolean(p));
@@ -626,6 +665,7 @@ const FEEDS: Feed[] = [
             40,
             "Open-Meteo",
             str(asArray(cur.time)[i]) || undefined,
+            geoPoint(spot.lat, spot.lon, spot.label),
           ),
         )
         .slice(0, city === "all" ? 12 : PER_FEED);

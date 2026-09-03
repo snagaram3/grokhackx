@@ -8,7 +8,7 @@ import type {
   PublicDataSource,
 } from "./insights-types";
 
-const INDUSTRY_FACTORS: Record<IndustryCategory, string[]> = {
+export const INDUSTRY_FACTORS: Record<IndustryCategory, string[]> = {
   technology: [
     "Innovation Index",
     "Adoption Rate",
@@ -81,7 +81,7 @@ const INDUSTRY_FACTORS: Record<IndustryCategory, string[]> = {
   ],
 };
 
-const INDUSTRY_CONSTRAINTS: Record<IndustryCategory, string[]> = {
+export const INDUSTRY_CONSTRAINTS: Record<IndustryCategory, string[]> = {
   technology: ["Scalability", "Security", "Performance", "Compatibility"],
   finance: ["Compliance", "Risk Management", "Liquidity", "Capital Requirements"],
   healthcare: ["Safety", "Efficacy", "Regulatory", "Accessibility"],
@@ -94,7 +94,7 @@ const INDUSTRY_CONSTRAINTS: Record<IndustryCategory, string[]> = {
   manufacturing: ["Quality", "Capacity", "Resources", "Compliance"],
 };
 
-const INDUSTRY_VARIABLES: Record<IndustryCategory, string[]> = {
+export const INDUSTRY_VARIABLES: Record<IndustryCategory, string[]> = {
   technology: ["Platform Type", "Target Market", "Revenue Model", "Stage"],
   finance: ["Asset Class", "Risk Profile", "Term Length", "Instrument Type"],
   healthcare: ["Treatment Type", "Patient Demographics", "Provider Type", "Coverage"],

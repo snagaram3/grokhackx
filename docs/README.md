@@ -5,6 +5,7 @@ Ops docs for HawkxAI live here. **Pitch and investor materials** are in **[prese
 - **[Contributing](./CONTRIBUTING.md)** — setup, scripts, tests, PR checklist
 - **[Runbook](./RUNBOOK.md)** — local / Docker / Vercel / CI, health checks, rollback
 - **[Architecture](./ARCHITECTURE.md)** — Vercel `iad1`, Cloud SQL, ten category databases (Mermaid)
+- **[Handbook](../app/handbook/page.tsx)** — live generated handbook (`/handbook`, HistGB card, permissions, lineage)
 - **[Vercel hosting](./VERCEL.md)** — import the GitHub repo, set `GOOGLE_API_KEY` and `FLEET_URL`, deploy (keep until www DNS cutover)
 - **[Cloud Run hosting](./GCP.md)** — production desk on GCP; GoDaddy records; do not cut Vercel until www HTTPS works
 - **[Presentation](./presentation/README.md)** — VC one-pager, core idea, research, agent canvas

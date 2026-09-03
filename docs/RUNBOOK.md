@@ -10,6 +10,7 @@ There is no `/health` route. Treat these as live checks:
 |-------|--------|
 | `GET /` | 200, lookup desk |
 | `GET /api/trends?topic=Camry` | 200 JSON after first lookup (30–60s cold) |
+| `GET /api/insights?q=Camry` | 200 `{ query, layers, firstRecord, thin }` — origin extract + oldest dated receipt |
 | `GET /api/booster` | 200 after a phrase is cached; **409** if lookup never ran |
 | `GET /api/collect?category=markets` | 200 `{ backend, databases, snapshots, forecasts }` after a tape exists |
 | `GET /api/fleet` | 200 `{ configured, ok, ms }` — warms Cloud Run `/health` |

@@ -60,6 +60,9 @@ CREATE TABLE IF NOT EXISTS receipts (
   collected_at TIMESTAMPTZ,
   PRIMARY KEY (snapshot_id, topic_id, url)
 );
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS source_api TEXT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS tool TEXT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS predictions (
   id TEXT PRIMARY KEY,
