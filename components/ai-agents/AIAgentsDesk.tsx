@@ -18,15 +18,23 @@ import type {
   AIAgentsPayload,
 } from "@/lib/ai-agents-types";
 import { AI_AGENT_CATEGORIES, AI_AGENT_PROVIDERS } from "@/lib/ai-agents-types";
+import AIAgentsCompare from "./AIAgentsCompare";
+import CostCalculator from "./CostCalculator";
 
 function AIAgentsList({
   agents,
   selected,
   onSelect,
+  compareMode,
+  selectedForCompare,
+  onToggleCompare,
 }: {
   agents: AIAgent[];
   selected: string | null;
   onSelect: (id: string) => void;
+  compareMode: boolean;
+  selectedForCompare: Set<string>;
+  onToggleCompare: (id: string) => void;
 }) {
   if (agents.length === 0) {
     return (
@@ -51,16 +59,29 @@ function AIAgentsList({
       <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
         <div className="flex flex-col gap-2">
           {agents.map((agent) => (
-            <button
+            <div
               key={agent.id}
-              type="button"
-              onClick={() => onSelect(agent.id)}
-              className={`flex flex-col gap-2 rounded-lg border p-3 text-left transition-all ${
+              className={`flex gap-3 rounded-lg border p-3 transition-all ${
                 selected === agent.id
                   ? "border-[var(--amber)] bg-[var(--amber-soft)]"
-                  : "border-[var(--line)] bg-[var(--panel)] hover:border-[var(--line-strong)] hover:bg-[var(--panel)]"
+                  : "border-[var(--line)] bg-[var(--panel)]"
               }`}
             >
+              {compareMode && (
+                <input
+                  type="checkbox"
+                  checked={selectedForCompare.has(agent.id)}
+                  onChange={() => onToggleCompare(agent.id)}
+                  className="mt-1 shrink-0"
+                  aria-label={`Compare ${agent.name}`}
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => !compareMode && onSelect(agent.id)}
+                className="flex min-w-0 flex-1 flex-col gap-2 text-left"
+                disabled={compareMode}
+              >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate font-medium text-[var(--ink)]">{agent.name}</h3>
@@ -84,7 +105,8 @@ function AIAgentsList({
                   {agent.metrics.weekly_change.toFixed(1)}% weekly
                 </span>
               </div>
-            </button>
+              </button>
+            </div>
           ))}
         </div>
       </div>
@@ -386,6 +408,9 @@ export default function AIAgentsDesk() {
   const [categoryFilter, setCategoryFilter] = useState<AIAgentCategory | "">("");
   const [providerFilter, setProviderFilter] = useState<AIAgentProvider | "">("");
   const [trendingOnly, setTrendingOnly] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedForCompare, setSelectedForCompare] = useState<Set<string>>(new Set());
+  const [showCalculator, setShowCalculator] = useState(false);
   const booted = useRef(false);
 
   const fetchAgents = useCallback(async (refresh = false) => {
@@ -426,6 +451,28 @@ export default function AIAgentsDesk() {
 
   const selectedAgent = payload?.agents.find((a) => a.id === selectedAgentId) || null;
 
+  const handleToggleCompare = (id: string) => {
+    setSelectedForCompare((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        if (next.size >= 6) {
+          return prev; // Max 6 agents
+        }
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleCompareMode = () => {
+    if (compareMode) {
+      setSelectedForCompare(new Set());
+    }
+    setCompareMode(!compareMode);
+  };
+
   return (
     <main className="desk-shell">
       <AmbientBackground />
@@ -464,6 +511,20 @@ export default function AIAgentsDesk() {
             >
               {trendingOnly ? "✓ " : ""}Trending
             </button>
+            <button
+              type="button"
+              onClick={handleCompareMode}
+              className={`btn-ghost ${compareMode ? "bg-[var(--amber-soft)] text-[var(--amber)]" : ""}`}
+            >
+              {compareMode ? "Cancel Compare" : "Compare"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCalculator(!showCalculator)}
+              className={`btn-ghost ${showCalculator ? "bg-[var(--amber-soft)] text-[var(--amber)]" : ""}`}
+            >
+              {showCalculator ? "Hide" : "💰"} Calculator
+            </button>
           </div>
         }
         context={
@@ -473,6 +534,9 @@ export default function AIAgentsDesk() {
               <>
                 <StatusChip>{payload.metadata.total} agents</StatusChip>
                 <StatusChip>{payload.metadata.trending} trending</StatusChip>
+                {compareMode && selectedForCompare.size > 0 && (
+                  <StatusChip>{selectedForCompare.size} selected for compare</StatusChip>
+                )}
               </>
             )}
             <GhostButton onClick={() => void fetchAgents(true)} disabled={loading}>
@@ -496,20 +560,52 @@ export default function AIAgentsDesk() {
       <DeskWorkspace
         listLabel="Agents"
         listBlurb={payload ? `${payload.agents.length} tracked` : "Loading..."}
-        stageLabel="Overview"
-        stageBlurb="Insights"
+        stageLabel={
+          showCalculator
+            ? "Calculator"
+            : compareMode && selectedForCompare.size >= 2
+              ? "Compare"
+              : "Overview"
+        }
+        stageBlurb={
+          showCalculator
+            ? "Cost estimates"
+            : compareMode && selectedForCompare.size >= 2
+              ? `${selectedForCompare.size} agents`
+              : "Insights"
+        }
         detailLabel="Detail"
         detailBlurb="Deep dive"
-        preferStage={!selectedAgentId}
-        stageKey={selectedAgentId}
+        preferStage={!selectedAgentId || (compareMode && selectedForCompare.size >= 2) || showCalculator}
+        stageKey={
+          showCalculator
+            ? "calculator"
+            : compareMode
+              ? Array.from(selectedForCompare).join(",")
+              : selectedAgentId
+        }
         list={
           <AIAgentsList
             agents={payload?.agents || []}
             selected={selectedAgentId}
             onSelect={setSelectedAgentId}
+            compareMode={compareMode}
+            selectedForCompare={selectedForCompare}
+            onToggleCompare={handleToggleCompare}
           />
         }
-        stage={<AIAgentsOverview payload={payload} insights={insights} />}
+        stage={
+          showCalculator ? (
+            <CostCalculator agents={payload?.agents || []} />
+          ) : compareMode && selectedForCompare.size >= 2 ? (
+            <AIAgentsCompare
+              selectedIds={Array.from(selectedForCompare)}
+              onClose={() => setCompareMode(false)}
+            />
+          ) : (
+            <AIAgentsOverview payload={payload} insights={insights} />
+          )
+        }
         detail={<AIAgentDetail agent={selectedAgent} />}
       />
     </main>
