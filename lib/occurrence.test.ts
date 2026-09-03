@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildEventTicks, eventKindOf } from "./event-ticks";
-import { cronAuthorized } from "./hourly-collect";
+import { cronAuthorized, requestOrigin } from "./hourly-collect";
 import { alignTotals, historyMarks, xAtTime } from "./occurrence-overlay";
 import type { TimeBucket, Topic } from "./types";
 
@@ -122,4 +122,29 @@ test("cronAuthorized allows local when CRON_SECRET is unset", () => {
   assert.equal(cronAuthorized(new Request("http://localhost/api/collect?hourly=1")), false);
   if (prev === undefined) delete process.env.CRON_SECRET;
   else process.env.CRON_SECRET = prev;
+});
+
+test("requestOrigin prefers forwarded host, then Vercel, then local", () => {
+  const prevVercel = process.env.VERCEL_URL;
+  delete process.env.VERCEL_URL;
+  assert.equal(
+    requestOrigin(
+      new Request("http://localhost/api/collect", {
+        headers: { "x-forwarded-host": "hawkxai.example", "x-forwarded-proto": "https" },
+      }),
+    ),
+    "https://hawkxai.example",
+  );
+  assert.equal(
+    requestOrigin(new Request("http://localhost/api/collect", { headers: { host: "127.0.0.1:3001" } })),
+    "http://127.0.0.1:3001",
+  );
+  process.env.VERCEL_URL = "app.vercel.app";
+  assert.equal(requestOrigin(new Request("http://localhost/api/collect")), "https://app.vercel.app");
+  process.env.VERCEL_URL = "https://already.vercel.app";
+  assert.equal(requestOrigin(new Request("http://localhost/api/collect")), "https://already.vercel.app");
+  delete process.env.VERCEL_URL;
+  assert.equal(requestOrigin(new Request("http://localhost/api/collect")), "http://localhost:3001");
+  if (prevVercel === undefined) delete process.env.VERCEL_URL;
+  else process.env.VERCEL_URL = prevVercel;
 });
