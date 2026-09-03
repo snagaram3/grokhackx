@@ -11,6 +11,7 @@ This directory contains autonomous AI agents that enhance the development workfl
 | 3 | [`bug-bot`](bug-bot/README.md) | Security and logic scan | `python3 agents/bug-bot/bug_bot.py` |
 | 4 | [`docker-ci`](docker-ci/README.md) | Production image build, smoke test, Bug Bot | `python3 agents/docker-ci/ci_agent.py` |
 | 5 | [`smartsalesguy`](smartsalesguy/README.md) | VC one-pager from this checkout | `python3 agents/smartsalesguy/smartsalesguy.py` |
+| 6 | [`maturity-monitor`](maturity-monitor/README.md) | GTM readiness scanner | `python3 agents/maturity-monitor/maturity_monitor.py --scan` |
 
 ### 1. Booster Agent (`booster-agent/`) — **core idea**
 
@@ -65,6 +66,17 @@ python3 agents/smartsalesguy/smartsalesguy.py
 ```
 
 Canonical page: [docs/presentation/VC_ONE_PAGER.md](../docs/presentation/VC_ONE_PAGER.md) · [Agent docs →](smartsalesguy/README.md)
+
+### 6. Maturity Monitor (`maturity-monitor/`) — **GTM readiness scanner**
+
+Automated scanning agent that checks endpoints, validates gates, and generates readiness assessments for CMO decision-making. Scans product health, git activity, and Soft Beta gates. Auto-updates the maturity report.
+
+```bash
+python3 agents/maturity-monitor/maturity_monitor.py --scan
+python3 agents/maturity-monitor/maturity_monitor.py --self-check
+```
+
+Canonical report: [docs/MATURITY_MONITOR.md](../docs/MATURITY_MONITOR.md) · [Agent docs →](maturity-monitor/README.md)
 
 ---
 

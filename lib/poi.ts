@@ -1,4 +1,5 @@
 import { slug } from "./metrics";
+import { occupancyVector, predictHistGb, type HistGbExample, type HistGbModel } from "./histgb";
 import { tokenHits } from "./phrase-hit";
 import { confidenceOf, outlookFromScores } from "./predict";
 import type { ForecastOutlook, Occupier, PoiInsight, PoiTag, WatchlistEntity } from "./types";
@@ -117,14 +118,63 @@ export function overlapRows(entity: WatchlistEntity, receipts: PoiReceipt[]): Po
     }));
 }
 
+export function occupancyExamples(
+  entity: WatchlistEntity,
+  receipts: PoiReceipt[],
+  labels: Map<string, PoiTag>,
+  qr: Map<string, string>,
+): HistGbExample[] {
+  const token = slug(entity.label).split("-")[0] ?? "";
+  const out: HistGbExample[] = [];
+  for (const r of receipts) {
+    const tag = labels.get(r.url);
+    if (tag !== "official" && tag !== "occupied") continue;
+    if (!receiptHitsAlias(r, entity.aliases)) continue;
+    const host = hostOf(r.url);
+    out.push({
+      x: occupancyVector({
+        officialHost: isOfficial(r.url, entity.label),
+        hasQr: Boolean(qr.get(r.url)),
+        titleLen: r.title.length,
+        hostHasBrand: token.length >= 4 && host.includes(token),
+      }),
+      y: tag === "official" ? 1 : 0,
+    });
+  }
+  return out;
+}
+
+function officialByModel(
+  url: string,
+  label: string,
+  title: string,
+  qrHit: boolean,
+  model: HistGbModel,
+): boolean {
+  const host = hostOf(url);
+  const token = slug(label).split("-")[0] ?? "";
+  return (
+    predictHistGb(
+      model,
+      occupancyVector({
+        officialHost: isOfficial(url, label),
+        hasQr: qrHit,
+        titleLen: title.length,
+        hostHasBrand: token.length >= 4 && host.includes(token),
+      }),
+    ) === 1
+  );
+}
+
 /** L1 organic vs occupancy from official vs other hosts. Abstain when n < 4. */
 export function scorePoi(
   entity: WatchlistEntity,
   receipts: PoiReceipt[],
-  opts?: { labels?: Map<string, PoiTag>; qr?: Map<string, string> },
+  opts?: { labels?: Map<string, PoiTag>; qr?: Map<string, string>; occupancyModel?: HistGbModel | null },
 ): PoiInsight {
   const labels = opts?.labels ?? new Map<string, PoiTag>();
   const qr = opts?.qr ?? new Map<string, string>();
+  const occupancyModel = opts?.occupancyModel ?? null;
   const hits = receipts.filter((r) => {
     if (!receiptHitsAlias(r, entity.aliases)) return false;
     return labels.get(r.url) !== "ignore";
@@ -133,6 +183,7 @@ export function scorePoi(
     const tag = labels.get(r.url);
     if (tag === "official") return true;
     if (tag === "occupied") return false;
+    if (occupancyModel) return officialByModel(r.url, entity.label, r.title, Boolean(qr.get(r.url)), occupancyModel);
     return isOfficial(r.url, entity.label);
   });
   const occupied = hits.filter((r) => !official.includes(r));
@@ -162,13 +213,19 @@ export function scorePoi(
   const confidence = confidenceOf(Math.max(series.length, n > 0 ? 1 : 0), thin);
   const rankScore = Math.round(Math.abs(delta) * (thin ? 0.1 : 0.25 + occupancy) * 100) / 100;
 
-  const occupiers: Occupier[] = occupied.slice(0, 12).map((r) => ({
-    title: r.title,
-    url: r.url,
-    host: hostOf(r.url) || r.platform,
-    tag: labels.get(r.url),
-    qrPayload: qr.get(r.url),
-  }));
+  const occupiers: Occupier[] = occupied
+    .slice(0, 12)
+    .map((r) => ({
+      title: r.title,
+      url: r.url,
+      host: hostOf(r.url) || r.platform,
+      tag: labels.get(r.url),
+      qrPayload: qr.get(r.url),
+    }))
+    .toSorted((a, b) => Number(Boolean(a.tag)) - Number(Boolean(b.tag)));
+  const goldTags = [...labels.entries()].filter(
+    ([url, tag]) => (tag === "official" || tag === "occupied") && hits.some((h) => h.url === url),
+  ).length;
 
   const analysis = thin
     ? n === 0
@@ -193,5 +250,7 @@ export function scorePoi(
     baselineRatio: Math.round(baselineRatio * 1000) / 1000,
     rankScore,
     window: series.map((s) => s.count).slice(-4),
+    model: { name: "stump", samples: 0 },
+    goldTags,
   };
 }

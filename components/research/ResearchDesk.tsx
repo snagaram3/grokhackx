@@ -5,6 +5,7 @@ import AmbientBackground from "@/components/AmbientBackground";
 import BoosterInsights from "@/components/BoosterInsights";
 import { KeepBrief } from "@/components/brief/KeepBrief";
 import { TermStage } from "@/components/desk/TermStage";
+import { OverlayField } from "@/components/desk/OverlayField";
 import ResearchLookup from "@/components/research/ResearchLookup";
 import {
   DeskFrame,
@@ -38,10 +39,14 @@ const KIND_LABEL: Record<ResearchSourceKind, string> = {
   uspto: "USPTO",
 };
 
-function setQueryUrl(topic: string) {
+function setQueryUrl(topic: string, sense?: string | null, vs?: string | null) {
   const url = new URL(window.location.href);
   if (topic) url.searchParams.set("q", topic);
   else url.searchParams.delete("q");
+  if (sense) url.searchParams.set("sense", sense);
+  else url.searchParams.delete("sense");
+  if (vs) url.searchParams.set("vs", vs);
+  else url.searchParams.delete("vs");
   window.history.replaceState(null, "", `${url.pathname}${url.search}`);
 }
 
@@ -152,8 +157,18 @@ export default function ResearchDesk() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [senseId, setSenseId] = useState<string | null>(null);
   const [bucketT, setBucketT] = useState<string | null>(null);
+  const [vsQuery, setVsQuery] = useState("");
+  const [compareLabel, setCompareLabel] = useState("");
+  const [comparePayload, setComparePayload] = useState<TrendsPayload | null>(null);
+  const [overlaying, setOverlaying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const booted = useRef(false);
+  const senseIdRef = useRef<string | null>(null);
+  const queryRef = useRef("");
+  const compareLabelRef = useRef("");
+  senseIdRef.current = senseId;
+  queryRef.current = query;
+  compareLabelRef.current = compareLabel;
 
   const view = useMemo(
     () => (payload ? sliceResearchPayload(payload, senseId) : null),
@@ -177,14 +192,42 @@ export default function ResearchDesk() {
     return counts;
   }, [view]);
 
-  const runResearch = useCallback(async (topic: string) => {
+  const overlayPhrase = useCallback(async (raw: string) => {
+    const vs = raw.trim();
+    const primary = (queryRef.current || "").trim();
+    if (vs.length < 2 || !primary || vs.toLowerCase() === primary.toLowerCase()) return;
+    setOverlaying(true);
+    try {
+      const res = await fetch(`/api/trends?topic=${encodeURIComponent(vs)}`);
+      if (!res.ok) throw new Error(`Overlay failed (${res.status})`);
+      const data = (await res.json()) as TrendsPayload;
+      const label = data.plugged || vs;
+      setComparePayload(data);
+      setCompareLabel(label);
+      setVsQuery(label);
+      setQueryUrl(primary, senseIdRef.current, label);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not overlay that phrase");
+    } finally {
+      setOverlaying(false);
+    }
+  }, []);
+
+  const runResearch = useCallback(async (topic: string, opts?: { sense?: string | null; vs?: string | null }) => {
     const q = topic.trim();
     if (!q) return;
     setLoading(true);
     setError(null);
     setQuery(q);
-    setQueryUrl(q);
+    queryRef.current = q;
     setBucketT(null);
+    if (!opts?.vs) {
+      setComparePayload(null);
+      setCompareLabel("");
+      setVsQuery("");
+      compareLabelRef.current = "";
+    }
+    setQueryUrl(q, opts?.sense ?? null, opts?.vs ?? null);
     try {
       const [res, trendsRes] = await Promise.all([
         fetch(`/api/research?q=${encodeURIComponent(q)}`),
@@ -198,25 +241,36 @@ export default function ResearchDesk() {
       if (!res.ok) throw new Error(`Research failed (${res.status})`);
       const data = (await res.json()) as ResearchPayload;
       setPayload(data);
-      const nextSense = data.defaultSenseId ?? data.senses?.[0]?.id ?? null;
+      const wanted = opts?.sense?.trim() || null;
+      const nextSense =
+        (wanted && data.senses?.some((s) => s.id === wanted) ? wanted : null) ??
+        data.defaultSenseId ??
+        data.senses?.[0]?.id ??
+        null;
       setSenseId(nextSense);
+      senseIdRef.current = nextSense;
+      setQueryUrl(q, nextSense, opts?.vs ?? null);
       const sliced = sliceResearchPayload(data, nextSense);
       setSelectedId(sliced.sources[0]?.id ?? data.sources[0]?.id ?? null);
+      if (opts?.vs) void overlayPhrase(opts.vs);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not research that topic");
       setPayload(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [overlayPhrase]);
 
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
-    const q = new URLSearchParams(window.location.search).get("q")?.trim() ?? "";
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q")?.trim() ?? "";
+    const sense = params.get("sense")?.trim() || null;
+    const vs = params.get("vs")?.trim() || null;
     if (q) {
       setQuery(q);
-      void runResearch(q);
+      void runResearch(q, { sense, vs });
     }
   }, [runResearch]);
 
@@ -243,9 +297,19 @@ export default function ResearchDesk() {
     setSelectedId(null);
     setSenseId(null);
     setBucketT(null);
+    setComparePayload(null);
+    setCompareLabel("");
+    setVsQuery("");
     setError(null);
     setQueryUrl("");
     inputRef.current?.focus();
+  }
+
+  function handleClearOverlay() {
+    setComparePayload(null);
+    setCompareLabel("");
+    setVsQuery("");
+    setQueryUrl(queryRef.current, senseIdRef.current, null);
   }
 
   const empty = !payload && !lookup && !loading;
@@ -285,6 +349,15 @@ export default function ResearchDesk() {
               <span className="max-w-[min(280px,60vw)] truncate rounded border border-white/15 bg-white/[0.03] px-2.5 py-1 text-[12px]">
                 {payload.query}
               </span>
+              <OverlayField
+                inputId="research-overlay"
+                value={vsQuery}
+                onChange={setVsQuery}
+                onSubmit={() => void overlayPhrase(vsQuery)}
+                onClear={handleClearOverlay}
+                overlaying={overlaying}
+                compareLabel={compareLabel}
+              />
               <div className="desk-chrome__context-trail flex items-center gap-2">
                 {Object.entries(byKind).map(([kind, n]) => (
                   <StatusChip key={kind}>
@@ -404,6 +477,8 @@ export default function ResearchDesk() {
                   emptyCopy="Occurrence fills from live tape while the brief below cites sources — never an invented WHY."
                   onSelectBucket={setBucketT}
                   onSelectRelated={(name) => void runResearch(name)}
+                  overlayPayload={comparePayload}
+                  overlayLabel={compareLabel || null}
                 />
                 {lead && brief ? (
                   <KeepBrief.Provider topic={lead} brief={brief} query={lookup?.query}>
@@ -427,6 +502,8 @@ export default function ResearchDesk() {
                         droppedCount={payload.droppedCount ?? 0}
                         onSelect={(id) => {
                           setSenseId(id);
+                          senseIdRef.current = id;
+                          setQueryUrl(payload.query, id, compareLabelRef.current || null);
                           const next = sliceResearchPayload(payload, id);
                           setSelectedId(next.sources[0]?.id ?? null);
                         }}

@@ -1,6 +1,15 @@
 import { slug } from "./metrics";
-import { overlapRows, scorePoi, type PoiReceipt } from "./poi";
+import { overlapRows, occupancyExamples, scorePoi, type PoiReceipt } from "./poi";
 import { decodeQrFromImageUrl, isQrImageUrl, payloadFromQrImageUrl } from "./qr";
+import {
+  examplesFromCounts,
+  fitHistGb,
+  MIN_OCCUPANCY_LABELS,
+  parseHistGbModel,
+  predictOutlook,
+  windowVector,
+  type HistGbModel,
+} from "./histgb";
 import { databaseName, readTrendDbConfig } from "./trend-db";
 import type { PoiInsight, PoiTag, Post, TrendsPayload, WatchlistEntity } from "./types";
 import { emptyWatchStore, parseWatchStore, type TapeWatchStore } from "./watch";
@@ -52,6 +61,12 @@ CREATE TABLE IF NOT EXISTS poi_labels (
   tag TEXT NOT NULL CHECK (tag IN ('official','occupied','ignore')),
   PRIMARY KEY (entity_id, url)
 );
+CREATE TABLE IF NOT EXISTS poi_models (
+  id TEXT PRIMARY KEY,
+  payload JSONB NOT NULL,
+  samples INT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 CREATE TABLE IF NOT EXISTS tape_watch (
   owner TEXT PRIMARY KEY,
   payload JSONB NOT NULL DEFAULT '{}',
@@ -69,6 +84,7 @@ type PgPool = {
 const memory: WatchlistEntity[] = [];
 const memoryLabels = new Map<string, Map<string, PoiTag>>();
 const memoryQr = new Map<string, string>();
+const memoryBlobs = new Map<string, unknown>();
 let memoryTape: TapeWatchStore = emptyWatchStore();
 let schemaReady = false;
 let pool: PgPool | null | undefined;
@@ -241,8 +257,12 @@ export async function insightsFor(
   }
   const labels = await loadLabels(db, entities.map((e) => e.id));
   const qr = await collectQr(db, receipts);
+  const gold = entities.flatMap((e) => occupancyExamples(e, receipts, labels.get(e.id) ?? new Map(), qr));
+  let occupancyModel = gold.length >= MIN_OCCUPANCY_LABELS ? fitHistGb(gold, 2) : null;
+  if (!occupancyModel) occupancyModel = await loadStoredModel("occupancy");
+  else await saveStoredModel("occupancy", occupancyModel);
   const insights = entities.map((e) =>
-    scorePoi(e, receipts, { labels: labels.get(e.id), qr }),
+    scorePoi(e, receipts, { labels: labels.get(e.id), qr, occupancyModel }),
   );
   if (db) {
     const stored = await loadStoredWindows(db, entities.map((e) => e.id));
@@ -253,6 +273,38 @@ export async function insightsFor(
     await persistInsights(db, insights, receipts).catch((err) => {
       console.warn("[watchlist] persist overlap", err instanceof Error ? err.message : err);
     });
+  }
+  const nwExamples = insights.flatMap((row) =>
+    examplesFromCounts(
+      row.window,
+      row.window.map(() => row.baselineRatio),
+      row.occupancy,
+      row.organic,
+    ),
+  );
+  let nwModel = fitHistGb(nwExamples);
+  if (!nwModel) nwModel = await loadStoredModel("next-window");
+  else await saveStoredModel("next-window", nwModel);
+  for (const row of insights) {
+    if (row.thin || row.window.length < 2) {
+      row.model = { name: "stump", samples: nwExamples.length };
+      continue;
+    }
+    if (!nwModel) {
+      row.model = { name: "stump", samples: nwExamples.length };
+      continue;
+    }
+    row.outlook = predictOutlook(
+      nwModel,
+      windowVector(
+        row.window,
+        row.baselineRatio,
+        row.baselineRatio,
+        row.occupancy,
+        row.organic,
+      ),
+    );
+    row.model = { name: "histgb", samples: nwModel.samples };
   }
   return insights.toSorted((a, b) => b.rankScore - a.rankScore || b.receiptCount - a.receiptCount);
 }
@@ -390,7 +442,7 @@ async function collectQr(db: PgPool | null, receipts: PoiReceipt[]): Promise<Map
       memoryQr.set(r.url, encoded);
       continue;
     }
-    if (!isQrImageUrl(r.url) || fetches >= 3) continue;
+    if (!isQrImageUrl(r.url) || fetches >= 8) continue;
     fetches += 1;
     const decoded = await decodeQrFromImageUrl(r.url);
     if (decoded) {
@@ -413,6 +465,45 @@ export async function tagReceipt(entityId: string, url: string, tag: PoiTag): Pr
      ON CONFLICT (entity_id, url) DO UPDATE SET tag = EXCLUDED.tag`,
     [entityId, url, tag],
   );
+}
+
+export async function readModelBlob(id: string): Promise<unknown | null> {
+  if (memoryBlobs.has(id)) return memoryBlobs.get(id) ?? null;
+  const db = await allPool();
+  if (!db) return null;
+  try {
+    await ensureSchema(db);
+    const res = await db.query(`SELECT payload FROM poi_models WHERE id = $1`, [id]);
+    const payload = res.rows[0]?.payload ?? null;
+    if (payload != null) memoryBlobs.set(id, payload);
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeModelBlob(id: string, payload: unknown, samples = 0): Promise<void> {
+  memoryBlobs.set(id, payload);
+  const db = await allPool();
+  if (!db) return;
+  try {
+    await ensureSchema(db);
+    await db.query(
+      `INSERT INTO poi_models (id, payload, samples, updated_at) VALUES ($1, $2::jsonb, $3, NOW())
+       ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, samples = EXCLUDED.samples, updated_at = NOW()`,
+      [id, JSON.stringify(payload), samples],
+    );
+  } catch (err) {
+    console.warn("[watchlist] poi_models", err instanceof Error ? err.message : err);
+  }
+}
+
+async function loadStoredModel(id: string): Promise<HistGbModel | null> {
+  return parseHistGbModel(await readModelBlob(id));
+}
+
+async function saveStoredModel(id: string, model: HistGbModel): Promise<void> {
+  await writeModelBlob(id, model, model.samples);
 }
 
 export async function loadTapeWatch(): Promise<{ backend: "postgres" | "memory"; store: TapeWatchStore }> {

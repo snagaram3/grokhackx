@@ -323,15 +323,30 @@ export function improvisationsFor(payload: TrendsPayload, briefs: BoosterTopicBr
   const allArtifacts = briefs.flatMap((b) => b.artifacts);
   const hashtags = allArtifacts.filter((a) => a.kind === "hashtag");
   const qrs = allArtifacts.filter((a) => a.kind === "qr");
-  const qrDecoded = qrs.some((a) => a.value.startsWith("decoded:"));
+  const qrDecoded = qrs.some((a) => !/^https?:/i.test(a.value) && !/mentioned/i.test(a.value));
   const bubbles = payload.topics.filter((t) => t.divergence >= 0.66).length;
 
-  if (payload.degraded.some((d) => d.includes("x"))) {
+  items.push({
+    priority: "P0",
+    title: "Tag Camry occupiers for occupancy HistGB",
+    why: "Next-window HistGB is live; occupancy still uses host-class L1 until 20 gold inspect tags.",
+    next: "On Watch inspect, mark occupiers Official / Occupied / Ignore. Camry first. Do not invent tags.",
+  });
+
+  if (payload.degraded.some((d) => d.includes("x") && !d.includes("google trends"))) {
     items.push({
       priority: "P0",
       title: "Stabilize X ingest",
       why: "Hashtag and QR campaigns mostly start on X. Offline X blinds the booster.",
-      next: "Keep Gemini Google Search for X mentions, add a Google Trends fallback so capture still runs.",
+      next: "Keep Gemini Google Search for X mentions. Google Trends RSS already fills public when X is empty.",
+    });
+  }
+  if (payload.degraded.some((d) => d.includes("google trends"))) {
+    items.push({
+      priority: "P1",
+      title: "Google Trends RSS is a thin X stand-in",
+      why: "Daily search heat is not an X post. Phrase lookups stay empty unless the name is actually trending.",
+      next: "Keep Gemini Google Search for X. Do not stamp Trends receipts as X.",
     });
   }
   if (payload.degraded.some((d) => d.includes("reddit"))) {
@@ -358,12 +373,20 @@ export function improvisationsFor(payload: TrendsPayload, briefs: BoosterTopicBr
       next: "Set YOUTUBE_API_KEY for official Shorts titles. TikTok Display API still needs a brand OAuth grant — no unofficial scraper.",
     });
   }
-  if (!qrDecoded) {
+  if (qrs.length === 0 && !qrDecoded) {
     items.push({
       priority: "P0",
       title: "QR image decode, not just QR-shaped URLs",
       why: "Campaigns hide the payload in images. Text regex cannot see a poster QR.",
-      next: "Accept image URLs → decode with a QR library → treat payload as a first-class artifact.",
+      next: "Cap is 8 image fetches per ingest. Keep tagging Camry posters when they land — do not invent QR payloads.",
+    });
+  }
+  if (bubbles >= 3) {
+    items.push({
+      priority: "P1",
+      title: "Platform-native campaign studio",
+      why: `${bubbles} topics are still single-platform bubbles — the cheapest time to act.`,
+      next: "One-click brief: format + hook + risk for the bubbling network only.",
     });
   }
   if (bubbles >= 3) {

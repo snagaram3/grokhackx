@@ -5,11 +5,15 @@ import {
   collectorAgent,
   collectorSummary,
   healthFrom,
+  mergedPublicPosts,
   reviewerAgent,
   validatorAgent,
   whyAgent,
 } from "@/lib/agents";
 import { geoAgent, trendsCacheKey } from "@/lib/geo";
+import { compareExamplePoi } from "@/lib/example-poi-compare";
+import { collectExamplePoi } from "@/lib/example-poi";
+import { hydrateIndustrySeries } from "@/lib/example-poi-series";
 import { locatedReceipts } from "@/lib/trend-geo";
 import { enrichQueryIntent, inferQueryIntent, toQueryInsight } from "@/lib/query";
 import { recordPulls } from "@/lib/rl";
@@ -39,10 +43,12 @@ async function runPipeline(
 ) {
   const prev = cachePeek<TrendsPayload>(cacheKey)?.topics;
   const collected = collectorAgent(geo, undefined, enabledSources);
-  const [redditR, hnR, publicR] = await Promise.all([
+  const [, redditR, hnR, publicR, exampleR] = await Promise.all([
+    hydrateIndustrySeries(),
     collected.reddit,
     collected.hn,
     collected.public,
+    collectExamplePoi(geo.city),
   ]);
 
   const [clustered, xR] = await Promise.all([
@@ -60,7 +66,8 @@ async function runPipeline(
     collected.x,
   ]);
   if (xR.ok) attachXPosts(clustered, xR.posts);
-  if (publicR.ok) attachPublicPosts(clustered, publicR.posts);
+  const publicPosts = mergedPublicPosts(xR, publicR);
+  if (publicPosts.length) attachPublicPosts(clustered, publicPosts);
   const { sources, degraded } = healthFrom([xR, redditR, hnR, publicR]);
   markPlatformPulls(sources);
 
@@ -82,7 +89,13 @@ async function runPipeline(
     degraded,
     pipeline,
     publicApis: publicR.publicApis,
-    located: locatedReceipts(publicR.posts),
+    located: locatedReceipts(publicPosts),
+    examplePoi: exampleR.posts,
+    poiCompare: compareExamplePoi(exampleR.places, locatedReceipts(publicPosts), {
+      collectedAt: exampleR.collectedAt,
+      datasetSha: exampleR.datasetSha,
+      liveRefresh: exampleR.liveRefresh,
+    }),
   };
   cacheSet(cacheKey, payload);
   cacheSet(LAST_KEY, payload);
@@ -99,14 +112,16 @@ async function runPlug(
   const local = inferQueryIntent(topic);
   const intentPromise = enrichQueryIntent(local);
   const collected = collectorAgent(geo, local.search, enabledSources);
-  const [redditR, hnR, xR, publicR, intent] = await Promise.all([
+  const [, redditR, hnR, xR, publicR, intent, exampleR] = await Promise.all([
+    hydrateIndustrySeries(),
     collected.reddit,
     collected.hn,
     collected.x,
     collected.public,
     intentPromise,
+    collectExamplePoi(geo.city),
   ]);
-  const posts = [...redditR.posts, ...hnR.posts, ...xR.posts, ...publicR.posts];
+  const posts = [...redditR.posts, ...hnR.posts, ...xR.posts, ...mergedPublicPosts(xR, publicR)];
   let clustered = plugTopicFromPosts(topic, posts, intent);
   const used = new Set(clustered.map((t) => t.id));
   const tape = cachePeek<TrendsPayload>(LAST_KEY)?.topics ?? [];
@@ -125,6 +140,7 @@ async function runPlug(
 
   const lead = validated.topics[0] ?? null;
   const sentiment = lead ? buildSentiment(lead) : null;
+  const publicPosts = mergedPublicPosts(xR, publicR);
   const payload: TrendsPayload = {
     topics: validated.topics,
     updatedAt: new Date().toISOString(),
@@ -132,7 +148,13 @@ async function runPlug(
     degraded,
     pipeline,
     publicApis: publicR.publicApis,
-    located: locatedReceipts(publicR.posts),
+    located: locatedReceipts(publicPosts),
+    examplePoi: exampleR.posts,
+    poiCompare: compareExamplePoi(exampleR.places, locatedReceipts(publicPosts), {
+      collectedAt: exampleR.collectedAt,
+      datasetSha: exampleR.datasetSha,
+      liveRefresh: exampleR.liveRefresh,
+    }),
     plugged: topic,
     query: toQueryInsight(intent, validated.topics, sentiment),
   };

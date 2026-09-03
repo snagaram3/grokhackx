@@ -8,11 +8,23 @@ import type {
   MindNodeKind,
   SentimentLean,
 } from "./types";
+import { examplesFromCounts, fitHistGb, predictOutlook, windowVector, type HistGbModel } from "./histgb";
 
 export interface HistoryArtifact {
   kind: string;
   value: string;
   mentions: number;
+}
+
+export interface HistoryReceipt {
+  url: string;
+  title: string;
+  platform: string;
+  score: number;
+  createdAt: string | null;
+  sourceApi?: string;
+  tool?: string;
+  collectedAt?: string;
 }
 
 export interface HistoryPoint {
@@ -30,6 +42,7 @@ export interface HistoryPoint {
   firstPlatform: string | null;
   driverWeight: number | null;
   artifacts: HistoryArtifact[];
+  receipts?: HistoryReceipt[];
 }
 
 const RISE = 1.08;
@@ -97,6 +110,7 @@ export function forecastNode(
   history: HistoryPoint[],
   category: DeskCategory,
   brief?: BoosterTopicBrief,
+  model?: HistGbModel | null,
 ): LeafForecast {
   const lean = brief?.sentiment.lean ?? history.at(-1)?.lean ?? "thin";
   const last = history.at(-1);
@@ -121,7 +135,16 @@ export function forecastNode(
   const prev = history[history.length - 2];
   const lastMetric = metricFor(node, last);
   const prevMetric = metricFor(node, prev);
-  const outlook = outlookFromScores(prevMetric, lastMetric, node.kind);
+  let outlook = outlookFromScores(prevMetric, lastMetric, node.kind);
+  let modelTag: LeafForecast["model"] = { name: "stump", samples: model?.samples ?? 0 };
+  if (model && node.kind === "topic") {
+    const series = history.map((p) => metricFor(node, p));
+    outlook = predictOutlook(
+      model,
+      windowVector(series, last.receiptCount, prev.receiptCount, 0, 0),
+    );
+    modelTag = { name: "histgb", samples: model.samples };
+  }
   const thinSentiment = lean === "thin" || last.n < 2;
 
   let analysis: string;
@@ -147,6 +170,7 @@ export function forecastNode(
     analysis,
     evidence: evidenceLine(history, category),
     thin: false,
+    model: modelTag,
   };
 }
 
@@ -158,10 +182,16 @@ export function forecastGraph(
 ): LeafForecast[] {
   const briefById = new Map(briefs.map((b) => [b.topicId, b]));
   const hubHistory = [...historyByTopic.values()].flat().toSorted((a, b) => a.at.localeCompare(b.at));
+  const examples = [...historyByTopic.values()].flatMap((hist) => {
+    const scores = hist.map((p) => p.score);
+    const bases = hist.map((p) => Math.min(p.receiptCount / 20, 1));
+    return examplesFromCounts(scores, bases, 0, 0);
+  });
+  const model = fitHistGb(examples);
   return graph.nodes.map((node) => {
     if (node.kind === "hub") return forecastNode(node, hubHistory.slice(-6), category);
     const history = node.topicId ? historyByTopic.get(node.topicId) ?? [] : [];
     const brief = node.topicId ? briefById.get(node.topicId) : undefined;
-    return forecastNode(node, history, brief?.category ?? category, brief);
+    return forecastNode(node, history, brief?.category ?? category, brief, model);
   });
 }

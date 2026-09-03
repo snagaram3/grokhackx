@@ -1,0 +1,106 @@
+# Maturity Monitor Configuration
+
+# Base URL for HawkxAI
+base_url: "https://hawkxai.com"
+
+# Endpoints to check
+endpoints:
+  - path: "/api/fleet"
+    timeout: 10
+    critical: true
+  - path: "/api/trends"
+    timeout: 10
+    critical: true
+
+# Git analysis
+git:
+  activity_window_days: 14
+  gtm_keywords:
+    - fleet
+    - signup
+    - auth
+    - account
+    - pricing
+    - legal
+    - terms
+    - privacy
+    - beta
+    - launch
+    - footprint
+
+# Soft Beta gates (8 total)
+gates:
+  - name: "Footprint works end-to-end on real phrase"
+    priority: "P0"
+  - name: "Fleet ingest healthy (no 503 failures)"
+    priority: "P0"
+  - name: "Homepage not broken on cold load"
+    priority: "P0"
+  - name: "Trends take 20-60s → honest progress state"
+    priority: "P1"
+  - name: "One claimed live source actually works (especially X)"
+    priority: "P1"
+  - name: "One seeded 'wow' demo (30s stranger test)"
+    priority: "P0"
+  - name: "Beta signup exists"
+    priority: "P0"
+  - name: "Repo/site link to each other"
+    priority: "P1"
+
+# Scorecard dimensions
+scorecard:
+  - dimension: "Footprint reliability"
+    max_score: 5
+  - dimension: "Data depth / source honesty"
+    max_score: 5
+  - dimension: "Time-to-value for stranger"
+    max_score: 5
+  - dimension: "Persistence / return loop"
+    max_score: 5
+  - dimension: "Commercial surface"
+    max_score: 5
+  - dimension: "Claim/truth alignment"
+    max_score: 5
+  - dimension: "Roadmap velocity on GTM blockers"
+    max_score: 5
+
+# Stage thresholds
+stages:
+  hold:
+    max_failing_gates: 999  # 4+ failing
+    recommendation: "HOLD — NOT READY FOR SOFT BETA"
+    maturity: "Prototype"
+  caution:
+    max_failing_gates: 3  # 2-3 failing
+    recommendation: "CAUTION — SOFT BETA READINESS AT RISK"
+    maturity: "Pre-beta"
+  nearly_ready:
+    max_failing_gates: 1  # 1 failing
+    recommendation: "NEARLY READY — MINOR FIXES NEEDED"
+    maturity: "Soft Beta candidate"
+  ready:
+    max_failing_gates: 0  # 0 failing
+    recommendation: "READY FOR SOFT BETA"
+    maturity: "Soft Beta ready"
+
+# Monitoring schedule
+monitoring:
+  default_interval_hours: 48
+  cadence:
+    - "Daily at 9 AM CT"
+    - "After every Vercel deploy"
+    - "After FLEET_URL changes"
+    - "After commits touching /api/fleet or /api/trends"
+
+# Report output
+report:
+  default_path: "docs/MATURITY_MONITOR.md"
+  format: "markdown"
+  include:
+    - executive_summary
+    - scorecard
+    - endpoint_health
+    - gate_validation
+    - blockers
+    - git_activity
+    - next_check
