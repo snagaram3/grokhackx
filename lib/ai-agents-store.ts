@@ -212,6 +212,34 @@ function generateMetrics(agent: Omit<AIAgent, "metrics" | "lastUpdated">): AIAge
   };
 }
 
+export function parseAgentFilter(params: {
+  category: string | null;
+  provider: string | null;
+  trending: string | null;
+  minMentions: string | null;
+  pricingTier: string | null;
+}): AIAgentFilter {
+  const filter: AIAgentFilter = {};
+
+  if (params.category) {
+    filter.category = params.category as AIAgentCategory;
+  }
+  if (params.provider) {
+    filter.provider = params.provider as AIAgentProvider;
+  }
+  if (params.trending !== null) {
+    filter.trending = params.trending === "true";
+  }
+  if (params.minMentions) {
+    filter.minMentions = parseInt(params.minMentions, 10);
+  }
+  if (params.pricingTier) {
+    filter.pricingTier = params.pricingTier as AIAgentFilter["pricingTier"];
+  }
+
+  return filter;
+}
+
 export class AIAgentsStore {
   private agents: Map<string, AIAgent> = new Map();
   private trends: Map<string, AIAgentTrend[]> = new Map();

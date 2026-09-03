@@ -47,6 +47,40 @@ export interface ComparisonResult {
   insights: string[];
 }
 
+export type ParseCompareIdsResult =
+  | { ok: true; ids: string[] }
+  | { ok: false; status: 400; error: string };
+
+export function parseCompareIds(idsParam: string | null): ParseCompareIdsResult {
+  if (!idsParam) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Missing 'ids' parameter. Provide comma-separated agent IDs.",
+    };
+  }
+
+  const ids = idsParam.split(",").map((id) => id.trim()).filter(Boolean);
+
+  if (ids.length < 2) {
+    return {
+      ok: false,
+      status: 400,
+      error: "At least 2 agent IDs required for comparison",
+    };
+  }
+
+  if (ids.length > 6) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Maximum 6 agents can be compared at once",
+    };
+  }
+
+  return { ok: true, ids };
+}
+
 export function compareAgents(agents: AIAgent[]): ComparisonResult {
   if (agents.length === 0) {
     return {

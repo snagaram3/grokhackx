@@ -1,39 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAIAgentsStore } from "@/lib/ai-agents-store";
-import type { AIAgentCategory, AIAgentFilter, AIAgentProvider } from "@/lib/ai-agents-types";
+import { getAIAgentsStore, parseAgentFilter } from "@/lib/ai-agents-store";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  
-  const filter: AIAgentFilter = {};
-  
-  const category = searchParams.get("category");
-  if (category) {
-    filter.category = category as AIAgentCategory;
-  }
-  
-  const provider = searchParams.get("provider");
-  if (provider) {
-    filter.provider = provider as AIAgentProvider;
-  }
-  
-  const trending = searchParams.get("trending");
-  if (trending !== null) {
-    filter.trending = trending === "true";
-  }
-  
-  const minMentions = searchParams.get("minMentions");
-  if (minMentions) {
-    filter.minMentions = parseInt(minMentions, 10);
-  }
-  
-  const pricingTier = searchParams.get("pricingTier");
-  if (pricingTier) {
-    filter.pricingTier = pricingTier as AIAgentFilter["pricingTier"];
-  }
+  const filter = parseAgentFilter({
+    category: searchParams.get("category"),
+    provider: searchParams.get("provider"),
+    trending: searchParams.get("trending"),
+    minMentions: searchParams.get("minMentions"),
+    pricingTier: searchParams.get("pricingTier"),
+  });
 
   const refresh = searchParams.get("refresh");
   

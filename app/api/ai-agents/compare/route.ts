@@ -1,38 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAIAgentsStore } from "@/lib/ai-agents-store";
-import { compareAgents, generateComparisonMarkdown } from "@/lib/ai-agents-compare";
+import { compareAgents, generateComparisonMarkdown, parseCompareIds } from "@/lib/ai-agents-compare";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  
-  const idsParam = searchParams.get("ids");
   const format = searchParams.get("format") || "json";
-  
-  if (!idsParam) {
-    return NextResponse.json(
-      { error: "Missing 'ids' parameter. Provide comma-separated agent IDs." },
-      { status: 400 }
-    );
+  const parsed = parseCompareIds(searchParams.get("ids"));
+
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   }
 
-  const ids = idsParam.split(",").map((id) => id.trim()).filter(Boolean);
-  
-  if (ids.length < 2) {
-    return NextResponse.json(
-      { error: "At least 2 agent IDs required for comparison" },
-      { status: 400 }
-    );
-  }
-
-  if (ids.length > 6) {
-    return NextResponse.json(
-      { error: "Maximum 6 agents can be compared at once" },
-      { status: 400 }
-    );
-  }
+  const ids = parsed.ids;
 
   try {
     const store = getAIAgentsStore();
