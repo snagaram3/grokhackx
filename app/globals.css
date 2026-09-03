@@ -1218,8 +1218,8 @@ body {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  overflow: auto;
-  padding: 18px 20px 28px;
+  overflow: hidden;
+  padding: 18px 20px 0;
 }
 
 .taproot--wait {
@@ -1282,8 +1282,11 @@ body {
   flex-direction: column;
   gap: 0;
   margin: 0;
-  padding: 0;
+  padding: 0 0 28px;
   list-style: none;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .taproot__layer {
@@ -1383,9 +1386,11 @@ body {
 
 .taproot__degraded {
   margin-top: 8px;
+  padding: 0 20px 28px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 /* ——— Mind desk: page scrolls so the map can be tall ——— */
