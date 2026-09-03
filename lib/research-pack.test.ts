@@ -3,7 +3,9 @@ import { test } from "node:test";
 import {
   anglesFromSources,
   clusterSenses,
+  isFirstPartyHost,
   packResearch,
+  packSummary,
   sliceResearchPayload,
   sourceHitsQuery,
   splitOnQuery,
@@ -63,6 +65,19 @@ const worldnews = src({
   kind: "reddit",
   title: "/r/WorldNews Live Thread: Russian Invasion of Ukraine Day 1645, Part 1",
   url: "https://www.reddit.com/r/worldnews/comments/1vyma6f/rworldnews_live_thread_russian_invasion_of/",
+});
+
+test("isFirstPartyHost matches apple.com for apple and ignores wikipedia.org", () => {
+  assert.equal(isFirstPartyHost("https://www.apple.com/newsroom/", "apple"), true);
+  assert.equal(isFirstPartyHost("https://en.wikipedia.org/wiki/Apple", "apple"), false);
+  assert.equal(isFirstPartyHost("not a url", "apple"), false);
+});
+
+test("packSummary stays evidence-only when every receipt is off-query", () => {
+  assert.match(packSummary("apple", 0, 3, null), /No on-query receipts/);
+  assert.match(packSummary("apple", 0, 3, null), /Dropped 3 unrelated/);
+  assert.match(packSummary("apple", 2, 0, null), /Collected 2 live receipts/);
+  assert.equal(/Dropped/.test(packSummary("apple", 2, 0, null)), false);
 });
 
 test("wikiTitleFromUrl decodes Inc. and Watch", () => {

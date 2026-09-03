@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  hostOf,
   isOfficial,
   nextWindowFromSeries,
   normalizeAliases,
+  occupancyExamples,
   receiptHitsAlias,
   scorePoi,
   type PoiReceipt,
 } from "./poi";
+import { fitHistGb, occupancyVector } from "./histgb";
 import { deltaLabel, pct, rollupWatchlist, sortInsights } from "./watchlist-metrics";
 import { payloadFromQrImageUrl } from "./qr";
 import { insightForQuery, leadTopic, postsInBucket, relatedPrints, topicPosts, topicsInBucket } from "./watchlist-lookup";
@@ -304,4 +307,112 @@ test("scorePoi honors human labels over host class", () => {
   });
   const unlabeled = scorePoi(camry, receipts);
   assert.ok(labeled.officialCount > unlabeled.officialCount);
+});
+
+test("hostOf strips www and drops junk URLs", () => {
+  assert.equal(hostOf("https://www.nhtsa.gov/camry"), "nhtsa.gov");
+  assert.equal(hostOf("not-a-url"), "");
+  assert.equal(isOfficial("not-a-url", "Camry"), false);
+});
+
+test("nextWindowFromSeries peaks when slope and last-step ratio disagree", () => {
+  assert.equal(nextWindowFromSeries([5, 10, 9], 0.1, 0.1), "peaking");
+  assert.equal(nextWindowFromSeries([20, 10, 12], 0.1, 0.1), "peaking");
+  assert.equal(nextWindowFromSeries([20, 10], 0.1, 0.1), "fading");
+});
+
+test("occupancyExamples keeps gold official/occupied tags and skips ignore plus off-query titles", () => {
+  const camry = entity("Camry");
+  const wiki = "https://en.wikipedia.org/wiki/Camry";
+  const news = "https://news.test/camry";
+  const spam = "https://ads.test/camry";
+  const tesla = "https://news.test/tesla";
+  const examples = occupancyExamples(
+    camry,
+    [
+      receipt({ url: wiki, title: "Camry" }),
+      receipt({ url: news, title: "Camry sale" }),
+      receipt({ url: spam, title: "Camry" }),
+      receipt({ url: tesla, title: "Tesla" }),
+    ],
+    new Map([
+      [wiki, "official"],
+      [news, "occupied"],
+      [spam, "ignore"],
+    ]),
+    new Map([[news, "https://camry.example/fit"]]),
+  );
+  assert.equal(examples.length, 2);
+  assert.equal(examples[0]?.y, 1);
+  assert.equal(examples[1]?.y, 0);
+  assert.equal(examples[1]?.x[1], 1);
+});
+
+test("scorePoi drops ignore tags, counts gold tags, and lets occupancy HistGB classify unlabeled hosts", () => {
+  const camry = entity("Camry");
+  const wiki = "https://en.wikipedia.org/wiki/Camry";
+  const nhtsa = "https://www.nhtsa.gov/camry";
+  const news = "https://news.test/camry";
+  const ads = "https://ads.test/camry-qr";
+  const spam = "https://spam.test/camry";
+  const receipts: PoiReceipt[] = [
+    receipt({ url: wiki, title: "Camry" }),
+    receipt({ url: nhtsa, title: "Camry recall" }),
+    receipt({ url: news, title: "Camry sale" }),
+    receipt({ url: ads, title: "Camry poster QR" }),
+    receipt({ url: spam, title: "Camry" }),
+  ];
+  const ignored = scorePoi(camry, receipts, {
+    labels: new Map([
+      [wiki, "official"],
+      [news, "occupied"],
+      [spam, "ignore"],
+    ]),
+  });
+  assert.equal(ignored.receiptCount, 4);
+  assert.equal(ignored.goldTags, 2);
+  assert.equal(ignored.thin, false);
+  assert.ok(!ignored.occupiers.some((o) => o.url === spam));
+
+  const gold = [];
+  for (let i = 0; i < 24; i++) {
+    gold.push({
+      x: occupancyVector({ officialHost: true, hasQr: false, titleLen: 40, hostHasBrand: true }),
+      y: 1,
+    });
+    gold.push({
+      x: occupancyVector({ officialHost: false, hasQr: true, titleLen: 80, hostHasBrand: false }),
+      y: 0,
+    });
+  }
+  const occupancyModel = fitHistGb(gold, 2);
+  assert.ok(occupancyModel);
+  const modeled = scorePoi(
+    camry,
+    [
+      receipt({ url: "https://en.wikipedia.org/wiki/Toyota_Camry", title: "Toyota Camry" }),
+      receipt({ url: "https://camry.example/news", title: "Camry" }),
+      receipt({ url: "https://news.test/camry-qr", title: "Camry QR flyer that is quite long already" }),
+      receipt({ url: "https://ads.test/camry", title: "Occupied Camry poster campaign landing" }),
+    ],
+    {
+      occupancyModel,
+      qr: new Map([
+        ["https://news.test/camry-qr", "payload"],
+        ["https://ads.test/camry", "payload"],
+      ]),
+    },
+  );
+  assert.equal(modeled.thin, false);
+  assert.ok(modeled.officialCount >= 1, "official host should still score official under occupancy HistGB");
+  assert.ok(modeled.occupiedCount >= 1, "QR + unofficial host should score occupied under occupancy HistGB");
+  assert.equal(modeled.receiptCount, 4);
+});
+
+test("memory model blobs round-trip HistGB JSON", async () => {
+  const { readModelBlob, writeModelBlob } = await import("./watchlist-store");
+  const id = "test-histgb-blob-d08b";
+  const payload = { kind: "histgb", lr: 0.25, stumps: [], samples: 16, classes: 3, trainedAt: "2026-09-01T00:00:00.000Z" };
+  await writeModelBlob(id, payload, 16);
+  assert.deepEqual(await readModelBlob(id), payload);
 });

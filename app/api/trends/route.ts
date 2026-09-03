@@ -10,6 +10,7 @@ import {
   validatorAgent,
   whyAgent,
 } from "@/lib/agents";
+import { parseEnabledSources } from "@/lib/api-source-selection";
 import { geoAgent, trendsCacheKey } from "@/lib/geo";
 import { compareExamplePoi } from "@/lib/example-poi-compare";
 import { collectExamplePoi } from "@/lib/example-poi";
@@ -169,23 +170,10 @@ export async function GET(req: NextRequest) {
   const geo = geoAgent(req.nextUrl.searchParams.get("city"));
   const topic = (req.nextUrl.searchParams.get("topic") ?? "").trim();
   
-  // Get enabled sources from query params (comma-separated) or cookie
-  let enabledSources: string[] | undefined;
-  const sourcesParam = req.nextUrl.searchParams.get("sources");
-  const sourcesCookie = req.cookies.get("hawkxai-api-sources")?.value;
-  
-  if (sourcesParam) {
-    enabledSources = sourcesParam.split(",").map((s) => s.trim()).filter(Boolean);
-  } else if (sourcesCookie) {
-    try {
-      const parsed = JSON.parse(sourcesCookie);
-      if (Array.isArray(parsed)) {
-        enabledSources = parsed.filter((s): s is string => typeof s === "string");
-      }
-    } catch {
-      // Invalid cookie, ignore
-    }
-  }
+  const enabledSources = parseEnabledSources(
+    req.nextUrl.searchParams.get("sources"),
+    req.cookies.get("hawkxai-api-sources")?.value,
+  );
   
   console.log(topic ? `${geo.log} topic="${topic}"` : geo.log);
   const cacheKey = trendsCacheKey(geo.city, topic || undefined);
