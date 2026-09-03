@@ -2,13 +2,25 @@
 
 Living backlog for AI Agents Intelligence feature.
 
-Last run: 2026-09-03T06:00:00+00:00
+Last run: 2026-09-03T06:30:00+00:00
 
 ## ✅ SHIPPED — Core AI Agents Tracking
 
 - **What:** New `/ai-agents` desk tracks 8+ leading AI agents with real-time metrics, capabilities, pricing, and trends. Filter by category (code-generation, reasoning, multimodal, search, automation, analysis, creative, enterprise), provider (OpenAI, Anthropic, Google, Meta, etc.), and trending status. Three-pane layout: agents list, overview insights, detailed agent view.
 - **Files:** `lib/ai-agents-types.ts`, `lib/ai-agents-store.ts`, `app/api/ai-agents/route.ts`, `components/ai-agents/AIAgentsDesk.tsx`, `app/ai-agents/page.tsx`
 - **Next:** Wire real-time mentions from X/Reddit/HN. Persist agent metrics to trend DB.
+
+## ✅ SHIPPED — Agent Comparison Matrix (P0)
+
+- **What:** Side-by-side comparison of up to 6 agents. Compare mode with checkboxes in agents list. Full comparison shows: summary (leader, most capable, best value, fastest growing), key insights, capabilities table with leader highlighting, pricing breakdown, metrics comparison. API endpoint `/api/ai-agents/compare?ids=id1,id2` supports JSON and markdown export.
+- **Files:** `lib/ai-agents-compare.ts`, `app/api/ai-agents/compare/route.ts`, `components/ai-agents/AIAgentsCompare.tsx`
+- **Next:** Add radar chart visualization for capability comparison.
+
+## ✅ SHIPPED — Cost Calculator (P2 → P0)
+
+- **What:** Interactive cost calculator estimates API costs based on token usage. Input/output token fields with preset buttons (1M, 10M, 20M tokens). Shows cheapest option, most expensive, price difference ratio. Full cost breakdown table with per-agent estimates. Recommendations section highlights best value and premium options.
+- **Files:** `components/ai-agents/CostCalculator.tsx`
+- **Next:** Add volume discount calculator for enterprise pricing.
 
 ## P0 — Real-time Mentions from Social Platforms
 
