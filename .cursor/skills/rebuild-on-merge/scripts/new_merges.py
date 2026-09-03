@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print new PRs merged to main since last check. Exit 0 always.
 
-Run from anywhere; git/gh target grokhackx.
+Run from anywhere; git/gh target kishanraj41/hawkxai.
 
 stdout:
   NO_NEW_MERGE
@@ -15,7 +15,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-REPO = "snagaram3/grokhackx"
+REPO = "kishanraj41/hawkxai"
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 STATE = HERE.parent.parent / "builddocker" / ".last-merge.json"

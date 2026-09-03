@@ -4,7 +4,7 @@ import { searchHn } from "./hn";
 import { stampSources } from "./lineage";
 import { packResearch } from "./research-pack";
 import { searchReddit } from "./reddit";
-import { fetchX } from "./signals";
+import { fetchGoogleTrendsSafe, fetchX } from "./signals";
 import type {
   ResearchFinding,
   ResearchPayload,
@@ -260,7 +260,7 @@ async function uspto(query: string): Promise<ResearchSource[]> {
 }
 
 function postsToSources(
-  kind: Extract<ResearchSourceKind, "hn" | "reddit" | "x">,
+  kind: Extract<ResearchSourceKind, "hn" | "reddit" | "x" | "public">,
   posts: { title: string; url: string; score: number; createdAt: string; tool?: string; collectedAt?: string }[],
   limit: number,
 ): ResearchSource[] {
@@ -426,6 +426,16 @@ export async function researchTopic(rawQuery: string): Promise<ResearchPayload> 
     ...postsToSources("reddit", reddit ?? [], 10),
     ...postsToSources("x", x ?? [], 8),
   ];
+
+  if (!(x ?? []).length) {
+    const trends = await fetchGoogleTrendsSafe("all", query);
+    if (trends.length) {
+      sources.push(...postsToSources("public", trends, 8));
+      const i = degraded.indexOf("x offline");
+      if (i >= 0) degraded[i] = "x offline · google trends fallback";
+      else degraded.push("x offline · google trends fallback");
+    }
+  }
 
   if (deep.notes) {
     sources.push({

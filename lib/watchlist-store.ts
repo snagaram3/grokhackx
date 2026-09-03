@@ -442,7 +442,7 @@ async function collectQr(db: PgPool | null, receipts: PoiReceipt[]): Promise<Map
       memoryQr.set(r.url, encoded);
       continue;
     }
-    if (!isQrImageUrl(r.url) || fetches >= 3) continue;
+    if (!isQrImageUrl(r.url) || fetches >= 8) continue;
     fetches += 1;
     const decoded = await decodeQrFromImageUrl(r.url);
     if (decoded) {

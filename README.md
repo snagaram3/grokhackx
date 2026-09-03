@@ -6,6 +6,18 @@ A live trend map across X, Reddit, and Hacker News. Gemini 3.5 clusters related 
 
 **Campaign Footprint**: Look up a specific phrase you own (product, hashtag, event) on `/footprint`. See where it printed, what artifacts co-occurred (hashtags, QR codes, URLs), and when it will peak. Evidence-only. No invented WHY.
 
+| Desk | Job | Vercel |
+|---|---|---|
+| Trends `/` | Live tape — what’s printing now | [hawkxai.vercel.app](https://hawkxai.vercel.app/) |
+| Watch `/watchlist` | Names you track | [Watch](https://hawkxai.vercel.app/watchlist) |
+| Footprint `/footprint` | Campaign war-room — mind map, artifacts, lineage | [Footprint](https://hawkxai.vercel.app/footprint) |
+| Insights `/insights` | Taproot — origin page, family, oldest dated receipt | [Insights](https://hawkxai.vercel.app/insights) |
+| Research `/research` | Cited topic brief — Wiki, web, HN; lineage on sources | [Research](https://hawkxai.vercel.app/research) |
+| Handbook `/handbook` | Generated architecture + permissions | [Handbook](https://hawkxai.vercel.app/handbook) |
+| Architecture `/architecture` | Ingest poster + mermaid | [Architecture](https://hawkxai.vercel.app/architecture) |
+
+Also on Cloud Run: [hawkxai-qalms3xvxq-uc.a.run.app](https://hawkxai-qalms3xvxq-uc.a.run.app/footprint). Contest poster: [`public/demo/architecture.html`](public/demo/architecture.html).
+
 **What makes HawkxAI different**: Brandwatch tells you "what's trending globally." We tell you "where YOUR campaign landed." Different job, different tool. See [docs/BRANDWATCH_COMPARISON.md](docs/BRANDWATCH_COMPARISON.md) for detailed positioning.
 
 # Core Idea — Booster Agent
@@ -59,7 +71,12 @@ npm run dev
 ```
 
 - App: http://localhost:3000
+- Watch: http://localhost:3000/watchlist
 - Footprint tab: http://localhost:3000/footprint (plug goes to `POST /api/fleet`)
+- Insights: http://localhost:3000/insights?q=Camry
+- Research: http://localhost:3000/research?q=Camry
+- Handbook: http://localhost:3000/handbook
+- Architecture poster: http://localhost:3000/architecture · http://localhost:3000/demo/architecture.html
 - Data: http://localhost:3000/api/trends
 - Force refresh: http://localhost:3000/api/trends?refresh=1
 - Fleet ingest: `POST /api/fleet` body `{ "phrase": "Camry" }`
@@ -135,7 +152,7 @@ Do not commit `.env.local`. Docker CI still builds the production image on every
 
 Next.js 14 (app router) · TypeScript · D3 v7 · Tailwind · Gemini 3.5 · Google Search · Cloud SQL Postgres (10 category DBs) · no auth
 
-Runtime topology (Mermaid): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · live at `/architecture`.
+Runtime topology (Mermaid): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · live at `/architecture`. Ingest poster: [`public/demo/architecture.html`](public/demo/architecture.html). Each receipt keeps `tool` + `collectedAt`. `GET /api/trends` stays the tape — the fleet never writes it.
 
 ## Agents
 

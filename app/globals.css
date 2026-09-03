@@ -1810,6 +1810,274 @@ body {
   color: rgba(255, 255, 255, 0.4);
 }
 
+/* ——— Architecture poster (judges / Devpost) ——— */
+
+.arch-board {
+  --arch-amber: #e8a23a;
+  --arch-live: rgba(232, 162, 58, 0.16);
+  --arch-persist: #34d399;
+  --arch-tape: rgba(244, 244, 245, 0.22);
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--void);
+  color: var(--ink);
+}
+
+.arch-board__wash {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 40% at 8% 0%, rgba(232, 162, 58, 0.08), transparent 55%),
+    radial-gradient(ellipse 40% 35% at 100% 100%, rgba(52, 211, 153, 0.05), transparent 50%);
+}
+
+.arch-board__grid {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 88%);
+}
+
+.arch-board__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 24px 20px;
+}
+
+.arch-board__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+
+.arch-board__title {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.arch-board__lede {
+  margin: 8px 0 0;
+  max-width: 40rem;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--mute-strong);
+}
+
+.arch-board__triad {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.arch-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 132px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.arch-chip--live {
+  border-color: rgba(232, 162, 58, 0.38);
+  background: var(--arch-live);
+}
+
+.arch-chip__k {
+  font-family: var(--font-plex), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.arch-chip__v {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.arch-flow {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 1080px;
+}
+
+.arch-flow__step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid rgba(232, 162, 58, 0.28);
+  border-radius: 8px;
+  background: rgba(232, 162, 58, 0.07);
+}
+
+.arch-flow__n {
+  font-family: var(--font-plex), ui-monospace, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--arch-amber);
+}
+
+.arch-flow__t {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.arch-lanes {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 1080px;
+}
+
+.arch-lane {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.arch-lane--ingest {
+  border-color: rgba(232, 162, 58, 0.28);
+  background: rgba(232, 162, 58, 0.04);
+}
+
+.arch-lane--store {
+  border-color: rgba(52, 211, 153, 0.22);
+  background: rgba(52, 211, 153, 0.035);
+}
+
+.arch-lane__name {
+  font-family: var(--font-plex), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.arch-lane__host {
+  margin: 0;
+  font-family: var(--font-plex), ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--mute-strong);
+  overflow-wrap: anywhere;
+}
+
+.arch-node {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(12, 13, 16, 0.72);
+}
+
+.arch-node--phrase {
+  border-color: rgba(232, 162, 58, 0.45);
+  background: rgba(232, 162, 58, 0.1);
+}
+
+.arch-node--dash {
+  border-style: dashed;
+  border-color: rgba(244, 244, 245, 0.2);
+}
+
+.arch-node__name {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.arch-node__meta {
+  font-family: var(--font-plex), ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--mute);
+}
+
+.arch-node__list {
+  margin: 0;
+  padding-left: 14px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--mute-strong);
+}
+
+.arch-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-items: center;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--mute-strong);
+}
+
+.arch-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arch-key i {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--arch-amber);
+}
+
+.arch-key--tape i {
+  background: transparent;
+  border-top: 2px dashed var(--arch-tape);
+}
+
+.arch-key--store i {
+  background: var(--arch-persist);
+}
+
+.arch-board__rule {
+  margin: 0;
+  max-width: 58rem;
+}
+
+@media (max-width: 720px) {
+  .arch-board__inner {
+    padding: 16px;
+  }
+}
+
 @media print {
   body * {
     visibility: hidden;
@@ -1826,6 +2094,17 @@ body {
     clip: auto;
     color: #111;
     background: #fff;
+  }
+  .arch-board,
+  .arch-board * {
+    visibility: visible;
+  }
+  .arch-board {
+    position: static;
+    overflow: visible;
+    box-shadow: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .no-print {
     display: none !important;
