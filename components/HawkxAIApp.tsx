@@ -124,6 +124,7 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
   const [lens, setLens] = useState<AgeLens | "all">("all");
   const [category, setCategory] = useState<DeskCategory>("all");
   const [surface, setSurface] = useState<Surface>("mind");
+  const [mindCompact, setMindCompact] = useState(false);
   const [plugged, setPlugged] = useState("");
   const [watchIds, setWatchIds] = useState<string[]>([]);
   const [watchHydrated, setWatchHydrated] = useState(false);
@@ -138,8 +139,45 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
   const pluggedRef = useRef("");
   const compareLabelRef = useRef("");
   const bootedRef = useRef(false);
+  const surfaceScrollRef = useRef<Record<Surface, number>>({ mind: 0, desk: 0, map: 0 });
+  const surfaceRef = useRef<Surface>(surface);
   pluggedRef.current = plugged;
   compareLabelRef.current = compareLabel;
+  surfaceRef.current = surface;
+
+  const changeSurface = useCallback((next: Surface) => {
+    const current = surfaceRef.current;
+    if (next === current) return;
+    surfaceScrollRef.current[current] = typeof window !== "undefined" ? window.scrollY : 0;
+    setSurface(next);
+  }, []);
+
+  useEffect(() => {
+    const y = surfaceScrollRef.current[surface] ?? 0;
+    let cancelled = false;
+    // Wait for shell height mode (scroll vs locked) to settle before restoring.
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      window.scrollTo({ top: y, left: 0, behavior: "auto" });
+    }, 40);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [surface]);
+
+  useEffect(() => {
+    if (surface !== "mind") {
+      setMindCompact(false);
+      return;
+    }
+    const onScroll = () => {
+      setMindCompact(window.scrollY > 56);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [surface]);
 
   const loadTrends = useCallback(async (refresh = false, topicOverride?: string | null) => {
     if (refresh) setRefreshing(true);
@@ -182,7 +220,7 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
           const first = data.topics[0] ?? null;
           setSelected(first);
           setHighlightedIds(data.topics.map((t) => t.id));
-          if (footprint) setSurface("desk");
+          if (footprint) changeSurface("desk");
         }
         return data;
       }
@@ -213,7 +251,7 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [city, footprint]);
+  }, [city, footprint, changeSurface]);
 
   async function overlayPhrase(raw: string) {
     const vs = raw.trim();
@@ -329,7 +367,7 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
     setVsQuery("");
     setCompareLabel("");
     setComparePayload(null);
-    setSurface("desk");
+    changeSurface("desk");
     setCategory("all");
     try {
       const data = await loadTrends(true, q);
@@ -352,7 +390,7 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
     setVsQuery("");
     setCompareLabel("");
     setComparePayload(null);
-    setSurface("desk");
+    changeSurface("desk");
     setCategory("all");
     try {
       const data = await loadTrends(true, q);
@@ -429,9 +467,9 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
         askRef.current?.focus();
         return;
       }
-      if (event.key === "g" || event.key === "G") setSurface("mind");
-      if (event.key === "m" || event.key === "M") setSurface("map");
-      if (event.key === "d" || event.key === "D") setSurface("desk");
+      if (event.key === "g" || event.key === "G") changeSurface("mind");
+      if (event.key === "m" || event.key === "M") changeSurface("map");
+      if (event.key === "d" || event.key === "D") changeSurface("desk");
       if (event.key === "j" || event.key === "k" || event.key === "J" || event.key === "K") {
         event.preventDefault();
         if (!topics.length) return;
@@ -449,7 +487,7 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, topics]);
+  }, [selected, topics, changeSurface]);
 
   function pickTopicId(id: string) {
     const topic = topics.find((t) => t.id === id) ?? payload?.topics.find((t) => t.id === id) ?? null;
@@ -517,7 +555,13 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
       lens={lens}
       since={sinceLastLook}
     >
-    <main className="desk-shell">
+    <main
+      className={`desk-shell${
+        surface === "mind"
+          ? ` desk-shell--mind-scroll${mindCompact ? " desk-shell--mind-compact" : ""}`
+          : ""
+      }`}
+    >
       <AmbientBackground />
 
       <DeskFrame
@@ -525,7 +569,7 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
           <>
             <SegmentControl
               value={surface}
-              onChange={(id) => setSurface(id as Surface)}
+              onChange={(id) => changeSurface(id as Surface)}
               options={[
                 { id: "mind", label: "Mind", hint: "G", blurb: "Receipt map" },
                 { id: "desk", label: "Desk", hint: "D", blurb: "Charts and facts" },
@@ -699,15 +743,17 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
         </div>
       </DeskFrame>
 
-      <TickerTape topics={payload?.topics ?? []} artifactsById={artifactsById} onSelect={pickTopic} />
+      <div className="mind-chrome-collapse">
+        <TickerTape topics={payload?.topics ?? []} artifactsById={artifactsById} onSelect={pickTopic} />
 
-      {askAnswer ? (
-        <div className="no-print relative z-20 mx-3 mt-2 rounded-[var(--radius-md)] border border-white/8 bg-[var(--panel-strong)] px-4 py-2.5">
-          <p className="text-sm leading-relaxed text-white/80">{askAnswer}</p>
-        </div>
-      ) : null}
+        {askAnswer ? (
+          <div className="no-print relative z-20 mx-3 mt-2 rounded-[var(--radius-md)] border border-white/8 bg-[var(--panel-strong)] px-4 py-2.5">
+            <p className="text-sm leading-relaxed text-white/80">{askAnswer}</p>
+          </div>
+        ) : null}
 
-      <TapeWatch deltas={deltas} onPick={pickTopicId} />
+        <TapeWatch deltas={deltas} onPick={pickTopicId} />
+      </div>
 
       {error ? (
         <div className="relative z-20 mx-3 mt-2 rounded-[var(--radius-md)] border border-white/8 bg-[var(--panel-strong)] px-4 py-2.5">
@@ -758,6 +804,10 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
               loading={loading}
               phrase={plugged}
               caption={focusCaption}
+              city={city}
+              located={payload?.located ?? []}
+              examplePoi={payload?.examplePoi ?? []}
+              poiCompare={payload?.poiCompare ?? null}
               onSelect={pickTopic}
               onHover={setHoverId}
             />
@@ -773,6 +823,10 @@ function LiveDesk({ desk }: { desk: DeskKind }) {
               takeaway={lens === "all" ? undefined : focusCaption}
               overlayTopics={comparePayload?.topics ?? null}
               overlayLabel={compareLabel || null}
+              city={city}
+              located={payload?.located ?? []}
+              examplePoi={payload?.examplePoi ?? []}
+              poiCompare={payload?.poiCompare ?? null}
               onSelect={pickTopic}
               onHover={setHoverId}
             />

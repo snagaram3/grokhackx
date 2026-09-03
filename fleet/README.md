@@ -2,7 +2,7 @@
 
 Contest-window agents for [All Things Agentic](https://allthingsagentichackathon.devpost.com/). **Taskmaster.**
 
-This service is **new work**. It does not replace the Vercel desk. An ADK agent collects receipts for a plugged phrase, scores/dedups **existing** titles, writes a GCS (or local) snapshot, and the desk merges that snapshot on `POST /api/fleet`.
+This fleet is additive to the Next.js desk. It does not replace `GET /api/trends`. An ADK agent collects receipts for a plugged phrase, scores/dedups **existing** titles, writes a GCS (or local) snapshot, and the desk merges that snapshot on `POST /api/fleet`.
 
 - Gemini 3.5 Flash
 - Google ADK (`ingest_agent`) — `/v1/ingest` **runs the agent**, it does not bypass it

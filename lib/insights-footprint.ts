@@ -126,41 +126,55 @@ function generateMetrics(
   reach: number,
   engagement: number
 ): InfiltrationMetric[] {
+  // Calculate percentiles based on actual metric values vs benchmarks
+  const calculatePercentile = (value: number, benchmark: number): number => {
+    // Percentile based on how much the value exceeds or falls short of benchmark
+    const ratio = value / benchmark;
+    if (ratio >= 1.3) return Math.min(95, 75 + Math.floor((ratio - 1.3) * 50));
+    if (ratio >= 1.0) return Math.floor(60 + (ratio - 1.0) * 50);
+    if (ratio >= 0.7) return Math.floor(40 + (ratio - 0.7) * 66.67);
+    return Math.max(10, Math.floor(ratio * 57.14));
+  };
+  
+  const visibilityScore = (infiltrationScore + reach) / 2;
+  const organicSpread = (infiltrationScore + engagement) / 2;
+  const crossPlatform = Math.min(100, infiltrationScore * 1.15);
+  
   return [
     {
       metric: "Visibility Score",
-      value: (infiltrationScore + reach) / 2,
+      value: visibilityScore,
       benchmark: 65,
-      percentile: Math.floor(Math.random() * 30) + 60,
+      percentile: calculatePercentile(visibilityScore, 65),
       trend: infiltrationScore > 60 ? "increasing" : "stable",
     },
     {
       metric: "Market Share Estimate",
       value: marketPenetration * 0.01,
       benchmark: 0.5,
-      percentile: Math.floor(Math.random() * 25) + 55,
+      percentile: calculatePercentile(marketPenetration * 0.01 * 100, 50),
       trend: marketPenetration > 70 ? "increasing" : "stable",
     },
     {
       metric: "Engagement Rate",
       value: engagement,
       benchmark: 60,
-      percentile: Math.floor(Math.random() * 35) + 50,
+      percentile: calculatePercentile(engagement, 60),
       trend: engagement > 65 ? "increasing" : "decreasing",
     },
     {
       metric: "Organic Spread",
-      value: (infiltrationScore + engagement) / 2,
+      value: organicSpread,
       benchmark: 70,
-      percentile: Math.floor(Math.random() * 20) + 65,
-      trend: "stable",
+      percentile: calculatePercentile(organicSpread, 70),
+      trend: organicSpread > 70 ? "increasing" : "stable",
     },
     {
       metric: "Cross-Platform Presence",
-      value: Math.min(100, infiltrationScore * 1.15),
+      value: crossPlatform,
       benchmark: 55,
-      percentile: Math.floor(Math.random() * 30) + 60,
-      trend: "increasing",
+      percentile: calculatePercentile(crossPlatform, 55),
+      trend: crossPlatform > 70 ? "increasing" : "stable",
     },
   ];
 }

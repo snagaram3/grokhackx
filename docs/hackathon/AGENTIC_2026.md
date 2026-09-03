@@ -17,7 +17,7 @@ HawkxAI is not rebuilt on ADK. The Vercel frontend stays. The fleet on Cloud Run
 
 ## What judges must see (unedited)
 
-1. Open [https://hawkxai.vercel.app/footprint](https://hawkxai.vercel.app/footprint). Tagline: “Receipts only — never an invented WHY.”
+1. Open [https://hawkxai-qalms3xvxq-uc.a.run.app/footprint](https://hawkxai-qalms3xvxq-uc.a.run.app/footprint). Tagline: “Receipts only — never an invented WHY.” Address bar must show `.run.app`.
 2. Plug **Camry** (or WWDC). Terminal: Cloud Run ADK agent fans out (HN first; X is never the centerpiece).
 3. Desk fills: prints, artifacts, mind map. No “Waiting on live sources.”
 4. Handbook regenerates. Optional money shot: change one tool permission in fleet config → handbook diffs.
@@ -30,13 +30,13 @@ Live as of 2026-08-18: Trends hydrates (~42 prints, 27/28 public APIs). **X is o
 - Google ADK (`google-adk`)
 - Cloud Run (this `fleet/` service)
 - Optional second service: Firestore or GCS for snapshots
-- Existing desk: Next.js on Vercel (`grokhackx` / hawkxai.vercel.app)
+- Next.js desk on Cloud Run + Vercel fallback (`hawkxai.vercel.app` until www cutover)
 
 ## Disclose in the write-up (Official Rules)
 
 > Projects must be newly created during the Submission Period. Participants may use standard development tools, including frameworks, libraries, starter templates, and AI coding assistants, but **must disclose any other pre-existing code or work incorporated into the Project**. The work described and submitted must have been built during the Submission Period.
 
-HawkxAI desk (now Gemini 3.5 + Google Search) and AutoLineage **predate** this contest window — disclose the desk; clustering is Google as of this contest. The **new** work is the ADK ingest fleet, snapshot store, scoring/dedup agent, Cloud Run deploy, and handbook extractor. Open-source is allowed if you enhance it and comply with licenses. Read the [full rules](https://allthingsagentichackathon.devpost.com/rules) before submit.
+HawkxAI was built during the Submission Period. The contest opened **4 August 2026**. This repo does not predate that date. Standard frameworks and Google Cloud services are allowed; there is no separate pre-contest HawkxAI codebase to disclose. Read the [full rules](https://allthingsagentichackathon.devpost.com/rules) before submit.
 
 ## 13-day cut (day job)
 

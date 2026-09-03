@@ -97,6 +97,26 @@ export function parseCity(raw?: string | null): CityId {
   return ALIAS[key] ?? "all";
 }
 
+/** Place filter near-box in km (receipt coords only — never a title geocode). */
+export const PLACE_NEAR_KM = 450;
+
+function placeHaversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const R = 6371;
+  const dLat = ((bLat - aLat) * Math.PI) / 180;
+  const dLon = ((bLon - aLon) * Math.PI) / 180;
+  const la1 = (aLat * Math.PI) / 180;
+  const la2 = (bLat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+export function nearPlaceFilter(lat: number, lon: number, city: CityId): boolean {
+  if (city === "all") return true;
+  const spec = CITIES[city];
+  return placeHaversineKm(lat, lon, spec.lat, spec.lon) <= PLACE_NEAR_KM;
+}
+
 /** Rewrite collection queries for a city. No maps API, no geocoding. */
 export function geoAgent(raw?: string | null): GeoQuery {
   const city = parseCity(raw);

@@ -3,7 +3,7 @@ import { totalScore } from "./metrics";
 import { buildSentiment } from "./sentiment";
 import { databaseName, readTrendDbConfig } from "./trend-db";
 import { TREND_DATABASES, type BoosterTopicBrief, type DeskCategory, type LeafForecast, type Topic, type TrendsPayload } from "./types";
-import type { HistoryArtifact, HistoryPoint } from "./predict";
+import type { HistoryArtifact, HistoryPoint, HistoryReceipt } from "./predict";
 
 export interface CollectWrite {
   snapshotId: string;
@@ -39,8 +39,16 @@ function dbOf(category: DeskCategory): MemoryDb {
   return created;
 }
 
+function cloneReceipt(receipt: HistoryReceipt): HistoryReceipt {
+  return { ...receipt };
+}
+
 function clonePoint(point: HistoryPoint): HistoryPoint {
-  return { ...point, artifacts: point.artifacts.map((a) => ({ ...a })) };
+  return {
+    ...point,
+    artifacts: point.artifacts.map((a) => ({ ...a })),
+    receipts: point.receipts?.map(cloneReceipt),
+  };
 }
 
 const memoryStore: TrendStore = {
@@ -137,12 +145,41 @@ function asArtifacts(value: unknown): HistoryArtifact[] {
   });
 }
 
+const receiptColsReady = new Set<string>();
+
+async function ensureReceiptColumns(pool: PgPool, database: string): Promise<void> {
+  if (receiptColsReady.has(database)) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS receipts (
+      snapshot_id TEXT NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+      topic_id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      title TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      score INT NOT NULL,
+      created_at TIMESTAMPTZ,
+      source_api TEXT,
+      tool TEXT,
+      collected_at TIMESTAMPTZ,
+      PRIMARY KEY (snapshot_id, topic_id, url)
+    )`);
+  await pool.query(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS source_api TEXT`);
+  await pool.query(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS tool TEXT`);
+  await pool.query(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ`);
+  receiptColsReady.add(database);
+}
+
 const postgresStore: TrendStore = {
   backend: "postgres",
   databases: TREND_DATABASES.map((id) => databaseName(id)),
   async write(batch) {
     const pool = await pgPool(databaseName(batch.category));
     if (!pool) return memoryStore.write(batch);
+    try {
+      await ensureReceiptColumns(pool, databaseName(batch.category));
+    } catch {
+      /* receipts table not provisioned yet */
+    }
     await pool.query(
       `INSERT INTO snapshots (id, ingested_at, plugged, topic_count, source_updated_at)
        VALUES ($1, $2, $3, $4, $5)
@@ -179,6 +216,34 @@ const postgresStore: TrendStore = {
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (snapshot_id, topic_id, kind, value) DO NOTHING`,
           [batch.snapshotId, word.topicId, art.kind, art.value, art.mentions, []],
+        );
+      }
+      for (const rec of word.receipts ?? []) {
+        if (!rec.url) continue;
+        await pool.query(
+          `INSERT INTO receipts
+            (snapshot_id, topic_id, url, title, platform, score, created_at, source_api, tool, collected_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (snapshot_id, topic_id, url) DO UPDATE SET
+             title = EXCLUDED.title,
+             platform = EXCLUDED.platform,
+             score = EXCLUDED.score,
+             created_at = COALESCE(EXCLUDED.created_at, receipts.created_at),
+             source_api = COALESCE(EXCLUDED.source_api, receipts.source_api),
+             tool = COALESCE(EXCLUDED.tool, receipts.tool),
+             collected_at = COALESCE(EXCLUDED.collected_at, receipts.collected_at)`,
+          [
+            batch.snapshotId,
+            word.topicId,
+            rec.url,
+            rec.title,
+            rec.platform,
+            rec.score,
+            rec.createdAt,
+            rec.sourceApi ?? null,
+            rec.tool ?? null,
+            rec.collectedAt ?? null,
+          ],
         );
       }
     }
@@ -275,9 +340,24 @@ export function trendStore(): TrendStore {
   return readTrendDbConfig() ? postgresStore : memoryStore;
 }
 
+function receiptsFromTopic(topic: Topic): HistoryReceipt[] {
+  return Object.values(topic.platforms).flatMap((s) =>
+    s.posts.map((p) => ({
+      url: p.url,
+      title: p.title,
+      platform: p.platform,
+      score: p.score,
+      createdAt: p.createdAt || null,
+      sourceApi: p.sourceApi,
+      tool: p.tool,
+      collectedAt: p.collectedAt,
+    })),
+  );
+}
+
 export function wordFromTopic(topic: Topic, brief?: BoosterTopicBrief, at = new Date().toISOString()): HistoryPoint {
   const sentiment = brief?.sentiment ?? buildSentiment(topic);
-  const posts = Object.values(topic.platforms).flatMap((s) => s.posts);
+  const receipts = receiptsFromTopic(topic);
   return {
     at,
     topicId: topic.id,
@@ -289,7 +369,7 @@ export function wordFromTopic(topic: Topic, brief?: BoosterTopicBrief, at = new 
     neg: sentiment.overall.neg,
     risk: sentiment.overall.risk,
     n: sentiment.overall.n,
-    receiptCount: posts.length,
+    receiptCount: receipts.length,
     firstPlatform: brief?.causation.firstPlatform ?? null,
     driverWeight: brief?.causation.drivers[0]?.weight ?? null,
     artifacts: (brief?.artifacts ?? []).map((a) => ({
@@ -297,6 +377,7 @@ export function wordFromTopic(topic: Topic, brief?: BoosterTopicBrief, at = new 
       value: a.value,
       mentions: a.mentions,
     })),
+    receipts,
   };
 }
 
