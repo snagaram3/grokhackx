@@ -20,7 +20,7 @@ Demo audience: hackathon judges walking the same console in a short live run.
 
 ## Product Purpose
 
-grokhackx is a Discover Trends research console. A user names a topic; the system runs three scouts (tech, finance, startup), collects public events, clusters related stories, scores them, optionally expands once (depth ≤ 2), draws a trend graph, and renders two insight views from the same graph:
+HawkxAI is a Discover Trends research console. A user names a topic; the system runs three scouts (tech, finance, startup), collects public events, clusters related stories, scores them, optionally expands once (depth ≤ 2), draws a trend graph, and renders two insight views from the same graph:
 
 - Consumer: What / Why / Next
 - Business: Impact / Risk / Opportunity
@@ -55,7 +55,7 @@ Undecided:
 
 ## Brand Commitments
 
-Product name in-repo: grokhackx. No separate logo, voice guide, or visual identity is binding yet.
+Product name in-repo: HawkxAI. No separate logo, voice guide, or visual identity is binding yet.
 
 ## Evidence on Hand
 

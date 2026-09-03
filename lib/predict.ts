@@ -16,6 +16,17 @@ export interface HistoryArtifact {
   mentions: number;
 }
 
+export interface HistoryReceipt {
+  url: string;
+  title: string;
+  platform: string;
+  score: number;
+  createdAt: string | null;
+  sourceApi?: string;
+  tool?: string;
+  collectedAt?: string;
+}
+
 export interface HistoryPoint {
   at: string;
   topicId: string;
@@ -31,6 +42,7 @@ export interface HistoryPoint {
   firstPlatform: string | null;
   driverWeight: number | null;
   artifacts: HistoryArtifact[];
+  receipts?: HistoryReceipt[];
 }
 
 const RISE = 1.08;

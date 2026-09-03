@@ -1,8 +1,8 @@
 # Booster improvisations
 
-Living backlog. Regenerated from real gaps after merging HistGB persist + handbook onto current main.
+Living backlog. Regenerated after Google Trends fallback, snapshot lineage, Research/Insights overlay, and QR decode cap 8.
 
-Last run: 2026-08-31T20:17:00+00:00
+Last run: 2026-08-31T21:00:00+00:00
 
 ## ✅ SHIPPED — Mind World scroll + POI hop polish + industry_hour SQL
 
@@ -20,11 +20,10 @@ Last run: 2026-08-31T20:17:00+00:00
 - **What:** Peak time prediction, platform spread prediction, campaign arc prediction, risk clustering detection, actionable summaries
 - **Files:** `lib/predictions.ts`, `components/PredictionPanel.tsx`, integrated into `lib/booster.ts`
 
-## ✅ SHIPPED — Research pack: drop / split / fill angles
+## ✅ SHIPPED — Research pack: drop / split / fill angles + `?sense=`
 
-- **What:** Research Copy drops receipts that fail `tokenHits` (worldnews without “apple”). Wikipedia titles become senses; Copy defaults to the denser sense. Angles and open questions are filled from dated titles, official hosts, and opposing dispute titles — templates stay empty when thin.
+- **What:** Research Copy drops receipts that fail `tokenHits` (worldnews without “apple”). Wikipedia titles become senses; Copy defaults to the denser sense. Angles and open questions are filled from dated titles, official hosts, and opposing dispute titles — templates stay empty when thin. Share URL keeps `?sense=` (and overlay `?vs=`).
 - **Files:** `lib/research-pack.ts`, `lib/research.ts`, `lib/research-brief.ts`, `components/research/ResearchDesk.tsx`
-- **Next:** Persist dropped/sense choice on the share URL (`?sense=`).
 
 ## ✅ SHIPPED — Tape-watch off localStorage
 
@@ -34,8 +33,8 @@ Last run: 2026-08-31T20:17:00+00:00
 
 ## ✅ SHIPPED — Insights as a taproot, not a search page
 
-- **What:** `/insights` traces a particular name down through senses, live tape, encyclopedia origin, family categories, and the oldest dated receipt. Thin queries stay thin — no invented WHY.
-- **Files:** `lib/insights-roots.ts`, `GET /api/insights?q=`, `components/insights/InsightsTaproot.tsx`
+- **What:** `/insights` traces a particular name down through senses, live tape, encyclopedia origin, family categories, and the oldest dated receipt. Thin queries stay thin — no invented WHY. Occurrence + overlay sit above the well.
+- **Files:** `lib/insights-roots.ts`, `GET /api/insights?q=`, `components/insights/InsightsTaproot.tsx`, `components/insights/InsightsDesk.tsx`
 - **Next:** Stamp real grant dates on Wikidata P1246 numbers (ODP) so an undated patent number cannot fake a 1982 root.
 
 ## ✅ SHIPPED — HistGB next-window + generated handbook
@@ -43,6 +42,29 @@ Last run: 2026-08-31T20:17:00+00:00
 - **What:** Next-window HistGB on receipt transitions (≥16) with L2 stump fallback. Fitted models persist on Cloud SQL `poi_models`. Occupancy HistGB waits for ≥20 gold inspect tags. `/handbook` and `GET /api/handbook` print permissions, a live permission diff, fleet mermaid, HistGB card, and AutoLineage. `python -m handbook.render` still writes `docs/hackathon/ARCHITECTURE.md`.
 - **Files:** `lib/histgb.ts`, `lib/handbook.ts`, `app/handbook/page.tsx`, `app/api/handbook/route.ts`
 - **Next:** Tag Camry occupiers Official / Occupied / Ignore until occupancy leaves host-class L1. Contest clip: flip `collect_public_apis`, refresh `/handbook`.
+
+## ✅ SHIPPED — Google Trends RSS when X is empty
+
+- **What:** If X returns no posts, collectors pull Google Trends RSS (city geo, or US/GB/IN/JP/BR for world). Phrase lookups keep only items that `tokenHits` the plugged name. Receipts stamp `collect_google_trends` on platform `public` — never as X. Degraded reads `x offline · google trends fallback`.
+- **Files:** `lib/signals.ts`, `lib/agents.ts`, `app/api/trends/route.ts`, `lib/research.ts`
+- **Next:** Keep Gemini Google Search for real X mentions. Do not stamp Trends receipts as X.
+
+## ✅ SHIPPED — AutoLineage on Cloud SQL snapshots
+
+- **What:** `collectTape` writes each post’s `tool` + `collectedAt` into category `receipts`. Watch already reads those columns. Old databases get `ALTER TABLE … ADD COLUMN IF NOT EXISTS`.
+- **Files:** `lib/trend-store.ts`, `sql/trend-category.sql`, `lib/predict.ts`
+- **Next:** Confirm `GET /api/collect` says backend=postgres on Cloud Run after `TREND_DB_*` lands.
+
+## ✅ SHIPPED — Overlay on Insights/Research TermStage
+
+- **What:** Same overlay field as Footprint (`?vs=`). Two occurrence lines. Never an invented shared WHY. Research also persists `?sense=` on the share URL.
+- **Files:** `components/desk/OverlayField.tsx`, `components/research/ResearchDesk.tsx`, `components/insights/InsightsDesk.tsx`
+
+## ✅ SHIPPED — QR image decode cap 8
+
+- **What:** Chart-API image URLs (`data`/`chl`) become QR artifacts. PNG/JPEG URLs decode with jsQR (8 per ingest, 2.5s cap).
+- **Files:** `lib/watchlist-store.ts`
+- **Next:** Keep tagging Camry posters when they land — do not invent QR payloads.
 
 ## P0 — Tag Camry occupiers for occupancy HistGB
 
@@ -54,25 +76,10 @@ Last run: 2026-08-31T20:17:00+00:00
 - **Why:** Shipped. `/footprint` POSTs the phrase to `/api/fleet`. `GET /api/trends` is untouched. Footprint falls back to live tape when fleet is 503.
 - **Next:** Keep `FLEET_URL` on both Vercel and Cloud Run `hawkxai` until www DNS cutover.
 
-## P0 — RudriQ / AutoLineage on receipts
+## P1 — Consent + per-user owner for ML / comparison data
 
-- **Why:** Shipped thin. Collectors stamp `tool` + `collectedAt`. Footprint and Research show a lineage strip. Save .md includes the lineage table. Handbook prints the same table.
-- **Next:** If the startup test holds, persist lineage next to Cloud SQL snapshots instead of only on the live payload.
-
-## P0 — Stabilize X ingest
-
-- **Why:** Hashtag and QR campaigns mostly start on X. Offline X blinds the booster.
-- **Next:** Keep Gemini Google Search for X mentions, add a Google Trends fallback so capture still runs.
-
-## P0 — QR image decode, not just QR-shaped URLs
-
-- **Why:** Shipped thin. Chart-API image URLs (`data`/`chl`) become QR artifacts. PNG/JPEG URLs decode with jsQR (3 per ingest, 2.5s cap).
-- **Next:** Raise the decode cap once Camry posters actually land as image receipts.
-
-## P1 — Compare two campaign phrases on one desk
-
-- **Why:** Shipped on Watch (shift-click) and Footprint (Overlay field / `?vs=`). Two occurrence lines. Never an invented shared WHY.
-- **Next:** Same overlay control on Insights/Research TermStage when a second campaign is in session.
+- **Why:** Plugged phrases, Watch POIs, `?vs=` overlays, and Official/Occupied/Ignore tags are the labeled set for HistGB and side-by-side comparison. Owner is still `demo`. Judges and later users need a sentence that says what we take and what we do not (no silent account scrape).
+- **Next:** Auth splits owner off `demo`. Show a one-line “used to fit next-window / occupancy when floors are met” on Watch inspect. Do not train on a phrase they did not plug or tag.
 
 ## P1 — Shared-artifact bridges on the mind map
 
@@ -91,7 +98,7 @@ Last run: 2026-08-31T20:17:00+00:00
 
 ## P2 — TREND_DB_* on Cloud Run desk
 
-- **Why:** Watch, tape-watch, HistGB persist, and Insights roots need Cloud SQL. The `hawkxai` Cloud Run service still needs the same `TREND_DB_*` as Vercel before DNS cutover.
+- **Why:** Watch, tape-watch, HistGB persist, Insights roots, and receipt lineage need Cloud SQL. The `hawkxai` Cloud Run service still needs the same `TREND_DB_*` as Vercel before DNS cutover.
 - **Next:** Copy Production env onto Cloud Run `hawkxai`, confirm `GET /api/collect` says backend=postgres.
 
 ## P0 — Wire Postgres for Historical Predictions

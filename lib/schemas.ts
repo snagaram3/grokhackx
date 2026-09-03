@@ -9,6 +9,8 @@ export const postSchema = z.object({
   score: z.number(),
   createdAt: z.string(),
   sourceApi: z.string().optional(),
+  tool: z.string().optional(),
+  collectedAt: z.string().optional(),
   geo: z
     .object({
       lat: z.number(),

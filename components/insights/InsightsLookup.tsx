@@ -20,7 +20,7 @@ export default function InsightsLookup({ onLookup, onFocusLookup }: InsightsLook
     <EmptyStage
       eyebrow="Insights"
       title="What are you trying to find the root of?"
-      copy="Not ten blue links. A taproot: the name you plugged, the origin page, the family it sits in, and the oldest dated receipt we can prove. Never an invented WHY."
+      copy="Not ten blue links. A taproot: the name you plugged, the origin page, the family it sits in, and the oldest dated receipt we can prove. Overlay a second name on occurrence after lookup — two lines, not a shared WHY."
       primaryLabel="Focus lookup"
       onPrimary={onFocusLookup}
       suggestions={[...SUGGESTIONS]}

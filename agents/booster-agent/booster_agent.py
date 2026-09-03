@@ -917,8 +917,10 @@ def improvisations_for(payload: Dict[str, Any], briefs: Sequence[TopicBrief]) ->
 
     items.append(Improvisation("P0", "Tag Camry occupiers for occupancy HistGB", "Next-window HistGB is live; occupancy still uses host-class L1 until 20 gold inspect tags.", "On Watch inspect, mark occupiers Official / Occupied / Ignore. Camry first. Do not invent tags."))
 
-    if any("x" in d for d in degraded):
-        items.append(Improvisation("P0", "Stabilize X ingest", "Hashtag and QR campaigns mostly start on X. Offline X blinds the booster.", "Keep x_search, add a Google Trends fallback so capture still runs."))
+    if any("x" in d and "google trends" not in d for d in degraded):
+        items.append(Improvisation("P0", "Stabilize X ingest", "Hashtag and QR campaigns mostly start on X. Offline X blinds the booster.", "Keep x_search. Google Trends RSS already fills public when X is empty."))
+    if any("google trends" in d for d in degraded):
+        items.append(Improvisation("P1", "Google Trends RSS is a thin X stand-in", "Daily search heat is not an X post. Phrase lookups stay empty unless the name is actually trending.", "Keep Gemini Google Search for X. Do not stamp Trends receipts as X."))
     if any("reddit" in d for d in degraded):
         items.append(Improvisation("P0", "Reddit fallback (OAuth or last-good cache)", "403s wipe phrase capture from the largest long-form platform.", "Authenticated Reddit client + cache last-good posts for 15m."))
     if not payload.get("sources", {}).get("public"):
@@ -926,11 +928,9 @@ def improvisations_for(payload: Dict[str, Any], briefs: Sequence[TopicBrief]) ->
     if len(hashtags) < 3:
         items.append(Improvisation("P0", "Ingest TikTok / Reels / Shorts caption text", "Almost no hashtags in HN/Reddit titles. Short-form campaigns are invisible.", "Set YOUTUBE_API_KEY for official Shorts titles. TikTok Display API still needs a brand OAuth grant — no unofficial scraper."))
     if len(qrs) == 0:
-        items.append(Improvisation("P0", "QR image decode, not just QR-shaped URLs", "Campaigns hide the payload in images. Text regex cannot see a poster QR.", "Raise the decode cap once Camry posters land as image receipts."))
+        items.append(Improvisation("P0", "QR image decode, not just QR-shaped URLs", "Campaigns hide the payload in images. Text regex cannot see a poster QR.", "Cap is 8 image fetches per ingest. Keep tagging Camry posters when they land — do not invent QR payloads."))
     if bubbles >= 3:
         items.append(Improvisation("P1", "Platform-native campaign studio", f"{bubbles} topics are still single-platform bubbles — the cheapest time to act.", "One-click brief: format + hook + risk for the bubbling network only."))
-    if payload.get("plugged"):
-        items.append(Improvisation("P1", "Compare two campaign phrases on one desk", "Watch can overlay two names. Footprint still plots one plugged phrase.", "Second lookup slot on Footprint occurrence — same last-4 series, no invented shared WHY."))
     if not any((t.get("tickers") or []) for t in topics):
         items.append(Improvisation("P1", "Finance overlay even without explicit tickers", "Competitors still need category peers when $TICKER is absent.", "Map topic labels to a small industry lexicon — never invent symbols."))
     thin = sum(1 for b in briefs if b.causation.thin)
@@ -1075,7 +1075,36 @@ def history_point_of(topic: Dict[str, Any], brief: Optional[TopicBrief], at: str
         "first_platform": brief.causation.first_platform if brief else None,
         "driver_weight": brief.causation.drivers[0].weight if brief and brief.causation.drivers else None,
         "artifacts": [{"kind": a.kind, "value": a.value, "mentions": a.mentions} for a in artifacts],
+        "receipts": _receipts_of(topic),
     }
+
+
+def _receipts_of(topic: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    platforms = topic.get("platforms") or {}
+    if not isinstance(platforms, dict):
+        return out
+    for name, slice_ in platforms.items():
+        posts = (slice_ or {}).get("posts") if isinstance(slice_, dict) else []
+        for p in posts or []:
+            if not isinstance(p, dict):
+                continue
+            url = str(p.get("url") or "")
+            if not url:
+                continue
+            out.append(
+                {
+                    "url": url,
+                    "title": str(p.get("title") or ""),
+                    "platform": str(p.get("platform") or name),
+                    "score": p.get("score") or 0,
+                    "created_at": p.get("createdAt"),
+                    "source_api": p.get("sourceApi"),
+                    "tool": p.get("tool"),
+                    "collected_at": p.get("collectedAt"),
+                }
+            )
+    return out
 
 
 def _metric_for(node: MindNode, point: Dict[str, Any]) -> float:

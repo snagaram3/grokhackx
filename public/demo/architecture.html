@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HawkxAI · Ingest architecture</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --void: #07080b;
+        --ink: #f4f4f5;
+        --mute: rgba(244, 244, 245, 0.52);
+        --mute-strong: rgba(244, 244, 245, 0.72);
+        --line: rgba(255, 255, 255, 0.08);
+        --grid: rgba(255, 255, 255, 0.035);
+        --amber: #e8a23a;
+        --persist: #34d399;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--void); color: var(--ink); }
+      body {
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+        padding: 28px;
+      }
+      .board {
+        position: relative;
+        overflow-x: auto;
+        max-width: 1440px;
+        margin: 0 auto;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--void);
+      }
+      .wash {
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 70% 40% at 8% 0%, rgba(232, 162, 58, 0.08), transparent 55%),
+          radial-gradient(ellipse 40% 35% at 100% 100%, rgba(52, 211, 153, 0.05), transparent 50%);
+      }
+      .grid {
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(180deg, rgba(0,0,0,.55), transparent 88%);
+      }
+      .inner { position: relative; display: flex; flex-direction: column; gap: 20px; padding: 24px; }
+      .top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
+      h1 { margin: 0; font-size: 22px; font-weight: 500; letter-spacing: -0.03em; }
+      .lede { margin: 8px 0 0; max-width: 40rem; font-size: 13px; line-height: 1.5; color: var(--mute-strong); }
+      .triad { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+      .chip {
+        display: inline-flex; flex-direction: column; gap: 2px; min-width: 132px;
+        padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+        background: rgba(255,255,255,0.025);
+      }
+      .chip.live { border-color: rgba(232,162,58,0.38); background: rgba(232,162,58,0.16); }
+      .chip .k { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); }
+      .chip .v { font-size: 12px; font-weight: 500; }
+      .flow { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; min-width: 1080px; }
+      .flow li {
+        display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 10px;
+        border: 1px solid rgba(232,162,58,0.28); border-radius: 8px; background: rgba(232,162,58,0.07);
+      }
+      .n { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--amber); }
+      .t { font-size: 11px; line-height: 1.3; }
+      .lanes { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; min-width: 1080px; }
+      .lane {
+        display: flex; flex-direction: column; gap: 8px; padding: 12px;
+        border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.02);
+      }
+      .lane.ingest { border-color: rgba(232,162,58,0.28); background: rgba(232,162,58,0.04); }
+      .lane.store { border-color: rgba(52,211,153,0.22); background: rgba(52,211,153,0.035); }
+      .lane h2 {
+        margin: 0; font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 10px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute);
+      }
+      .host { margin: 0; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10px; line-height: 1.35; color: var(--mute-strong); }
+      .node {
+        display: flex; flex-direction: column; gap: 4px; padding: 8px 9px;
+        border: 1px solid var(--line); border-radius: 8px; background: rgba(12,13,16,0.72);
+      }
+      .node.phrase { border-color: rgba(232,162,58,0.45); background: rgba(232,162,58,0.1); }
+      .node.dash { border-style: dashed; border-color: rgba(244,244,245,0.2); }
+      .name { font-size: 12px; font-weight: 500; letter-spacing: -0.015em; }
+      .meta { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10px; line-height: 1.4; color: var(--mute); }
+      .node ul { margin: 0; padding-left: 14px; font-size: 11px; line-height: 1.45; color: var(--mute-strong); }
+      footer {
+        display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center;
+        padding-top: 4px; border-top: 1px solid var(--line);
+        font-size: 11px; line-height: 1.45; color: var(--mute-strong);
+      }
+      .key { display: inline-flex; align-items: center; gap: 8px; }
+      .key i { display: block; width: 18px; height: 2px; background: var(--amber); }
+      .key.tape i { background: transparent; border-top: 2px dashed rgba(244,244,245,0.22); }
+      .key.store i { background: var(--persist); }
+      .rule { margin: 0; max-width: 58rem; }
+      @media (max-width: 720px) {
+        body { padding: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="board" aria-label="HawkxAI ingest architecture">
+      <div class="wash" aria-hidden="true"></div>
+      <div class="grid" aria-hidden="true"></div>
+      <div class="inner">
+        <header class="top">
+          <div>
+            <h1>HawkxAI ingest architecture</h1>
+            <p class="lede">
+              A marketer plugs a campaign phrase. Google ADK on Cloud Run collects live
+              receipts with Gemini 3.5 Flash, writes a snapshot, and the desk maps the
+              footprint. Receipts only — never an invented WHY. X is not in the toolset.
+            </p>
+          </div>
+          <div class="triad" aria-label="Mandatory contest stack">
+            <span class="chip live"><span class="k">Model</span><span class="v">Gemini 3.5 Flash</span></span>
+            <span class="chip live"><span class="k">Agent framework</span><span class="v">Google ADK</span></span>
+            <span class="chip live"><span class="k">Runtime</span><span class="v">Cloud Run × 2</span></span>
+            <span class="chip"><span class="k">Snapshots</span><span class="v">Cloud Storage</span></span>
+          </div>
+        </header>
+        <ol class="flow">
+          <li><span class="n">01</span><span class="t">Plug a phrase you own</span></li>
+          <li><span class="n">02</span><span class="t">POST /api/fleet</span></li>
+          <li><span class="n">03</span><span class="t">ADK Runner.run_async</span></li>
+          <li><span class="n">04</span><span class="t">Collect, then score</span></li>
+          <li><span class="n">05</span><span class="t">GCS snapshot JSON</span></li>
+          <li><span class="n">06</span><span class="t">Merge into Footprint</span></li>
+        </ol>
+        <div class="lanes">
+          <section class="lane">
+            <h2>Operator</h2>
+            <p class="host">Phrase is the plug. Same modules fill.</p>
+            <div class="node phrase">
+              <span class="name">Campaign phrase</span>
+              <span class="meta">product · hashtag · event · ticker</span>
+            </div>
+            <div class="node">
+              <span class="name">Desks</span>
+              <ul>
+                <li>/footprint — campaign war-room</li>
+                <li>/ — trending tape</li>
+                <li>/insights — origin taproot</li>
+                <li>/research — cited topic brief</li>
+              </ul>
+            </div>
+          </section>
+          <section class="lane">
+            <h2>Desk</h2>
+            <p class="host">Cloud Run hawkxai · Next.js 14</p>
+            <div class="node">
+              <span class="name">POST /api/fleet</span>
+              <span class="meta">{ "phrase": "Camry" }</span>
+            </div>
+            <div class="node dash">
+              <span class="name">GET /api/trends</span>
+              <span class="meta">tape stays the tape · fleet never writes it</span>
+            </div>
+            <div class="node">
+              <span class="name">Merge + map</span>
+              <span class="meta">prints · artifacts · mind map · lineage strip</span>
+            </div>
+            <div class="node">
+              <span class="name">Vercel fallback</span>
+              <span class="meta">hawkxai.vercel.app until www cutover</span>
+            </div>
+          </section>
+          <section class="lane ingest">
+            <h2>Ingest fleet</h2>
+            <p class="host">Cloud Run hawkxai-fleet · /dev-ui</p>
+            <div class="node phrase">
+              <span class="name">hawkxai_ingest</span>
+              <span class="meta">google.adk Agent · Runner.run_async</span>
+            </div>
+            <div class="node">
+              <span class="name">POST /v1/ingest</span>
+              <span class="meta">FastAPI + ADK web · FLEET_URL</span>
+            </div>
+            <div class="node">
+              <span class="name">Gemini 3.5 Flash</span>
+              <span class="meta">orchestrates tools · ranks existing titles</span>
+            </div>
+            <div class="node">
+              <span class="name">permissions.json</span>
+              <span class="meta">tool on/off · handbook diffs this file</span>
+            </div>
+          </section>
+          <section class="lane">
+            <h2>Channels</h2>
+            <p class="host">ADK tools, gated. Thin stays thin.</p>
+            <div class="node">
+              <span class="name">collect_hn</span>
+              <span class="meta">Hacker News Algolia</span>
+            </div>
+            <div class="node">
+              <span class="name">collect_public_apis</span>
+              <span class="meta">Wikipedia · Google News RSS · NHTSA</span>
+            </div>
+            <div class="node">
+              <span class="name">score_and_dedup</span>
+              <span class="meta">dedup URLs · Gemini ranks existing titles</span>
+            </div>
+            <div class="node dash">
+              <span class="name">Google Trends RSS</span>
+              <span class="meta">desk tape when X is empty · never stamped as X</span>
+            </div>
+          </section>
+          <section class="lane store">
+            <h2>Store + model</h2>
+            <p class="host">us-east4 · receipts keep lineage</p>
+            <div class="node">
+              <span class="name">Cloud Storage</span>
+              <span class="meta">gs://hawkxai-fleet-snapshots/</span>
+            </div>
+            <div class="node">
+              <span class="name">Cloud SQL Postgres 16</span>
+              <span class="meta">hawkxai-trends · 10 category databases</span>
+            </div>
+            <div class="node">
+              <span class="name">AutoLineage</span>
+              <span class="meta">receipt.tool + collectedAt</span>
+            </div>
+            <div class="node">
+              <span class="name">HistGB next-window</span>
+              <span class="meta">L2 stumps until 16 transitions · occupancy L1 until 20 gold tags</span>
+            </div>
+          </section>
+        </div>
+        <footer>
+          <span class="key"><i></i>Contest-window ingest (ADK fleet)</span>
+          <span class="key tape"><i></i>Pre-existing tape (GET /api/trends)</span>
+          <span class="key store"><i></i>Persisted receipts</span>
+          <p class="rule">
+            Shared mind-map bridges exist only when the same artifact prints on two names.
+            Occupancy is host-class L1 until twenty gold inspect tags. Never invent a WHY.
+          </p>
+        </footer>
+      </div>
+    </article>
+  </body>
+</html>

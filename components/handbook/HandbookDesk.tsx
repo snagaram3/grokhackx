@@ -29,7 +29,7 @@ export default function HandbookDesk() {
         </p>
         <p className="text-sm text-[var(--mute)]">
           <a href="/architecture" className="underline-offset-2 hover:underline">
-            Runtime architecture
+            Ingest architecture
           </a>
           {" · "}
           <a href="/api/handbook?format=md" className="underline-offset-2 hover:underline">
