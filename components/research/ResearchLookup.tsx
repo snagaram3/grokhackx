@@ -21,7 +21,7 @@ export default function ResearchLookup({ onLookup, onFocusLookup }: ResearchLook
     <EmptyStage
       eyebrow="Research"
       title="Research a topic"
-      copy="Dig Wikipedia, PubMed, arXiv, USPTO, the open web, and live discussion. Occurrence fills from the same phrase. Findings cite sources. Thin evidence stays thin."
+      copy="Dig Wikipedia, PubMed, arXiv, USPTO, the open web, and live discussion. Occurrence fills from the same phrase. Overlay a second name after lookup: two lines, not a shared story. Findings cite sources. Thin evidence stays thin."
       primaryLabel="Focus research"
       onPrimary={onFocusLookup}
       suggestions={[...SUGGESTIONS]}

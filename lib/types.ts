@@ -282,6 +282,7 @@ export interface LeafForecast {
   analysis: string;
   evidence: string;
   thin: boolean;
+  model?: { name: "histgb" | "stump"; samples: number };
 }
 
 export interface MindNode {
@@ -538,4 +539,8 @@ export interface PoiInsight {
   rankScore: number;
   /** Last overlap counts, oldest → newest. */
   window: number[];
+  /** How the next-window call was made. Stump until HistGB has enough transitions. */
+  model?: { name: "histgb" | "stump"; samples: number };
+  /** Gold official+occupied inspect tags on this name. Occupancy HistGB needs 20. */
+  goldTags?: number;
 }

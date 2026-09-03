@@ -517,6 +517,18 @@ export function WatchlistInspect({
             <dt>Confidence</dt>
             <dd>{insight.thin ? "—" : pct(insight.confidence)}</dd>
           </div>
+          <div>
+            <dt>Next-window</dt>
+            <dd>
+              {insight.model?.name === "histgb"
+                ? `HistGB · ${insight.model.samples}`
+                : `L2 stumps${insight.model?.samples ? ` · ${insight.model.samples} transitions` : ""}`}
+            </dd>
+          </div>
+          <div>
+            <dt>Gold tags</dt>
+            <dd>{insight.goldTags ?? 0}/20 occupancy</dd>
+          </div>
         </dl>
         <SplitBar official={insight.officialCount} occupied={insight.occupiedCount} />
         <p className="signal-label mt-4">Occupiers</p>
