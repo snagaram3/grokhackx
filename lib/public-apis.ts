@@ -76,7 +76,8 @@ function youtubeItems(data: unknown): Post[] {
     .filter((p): p is Post => Boolean(p));
 }
 
-function geoPoint(lat: number, lon: number, label: string): Post["geo"] | undefined {
+/** Proven lat/lon only. GeoJSON callers must swap [lon, lat] via geoFromCoords. */
+export function geoPoint(lat: number, lon: number, label: string): Post["geo"] | undefined {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
   if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return undefined;
   const name = label.trim().slice(0, 80);
@@ -92,7 +93,8 @@ function firstLonLat(raw: unknown): [number, number] | null {
   return firstLonLat(raw[0]);
 }
 
-function geoFromCoords(raw: unknown, label: string): Post["geo"] | undefined {
+/** GeoJSON coordinates are [lon, lat] (and may be nested rings). */
+export function geoFromCoords(raw: unknown, label: string): Post["geo"] | undefined {
   const pair = firstLonLat(raw);
   if (!pair) return undefined;
   return geoPoint(pair[1], pair[0], label);

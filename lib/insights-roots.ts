@@ -401,7 +401,7 @@ async function wikipediaRoot(title: string): Promise<WikiRoot> {
   return { firstAt, firstEditor, parents };
 }
 
-function wikidataTime(raw: string | undefined): string | null {
+export function wikidataTime(raw: string | undefined): string | null {
   if (!raw) return null;
   const m = raw.match(/([+-]?\d{4})-(\d{2})-(\d{2})/);
   if (!m) return null;
@@ -496,7 +496,7 @@ async function duckAbstract(query: string): Promise<{ title: string; url: string
   };
 }
 
-function patentsFromLegacy(data: unknown): RootReceipt[] {
+export function patentsFromLegacy(data: unknown): RootReceipt[] {
   const patents = (data as { patents?: { patent_number?: string; patent_title?: string; patent_date?: string; patent_abstract?: string }[] })
     .patents;
   const out: RootReceipt[] = [];
@@ -513,7 +513,7 @@ function patentsFromLegacy(data: unknown): RootReceipt[] {
   return out;
 }
 
-function patentsFromV2(data: unknown): RootReceipt[] {
+export function patentsFromV2(data: unknown): RootReceipt[] {
   const rows = (data as { patents?: { patent_id?: string; patent_title?: string; patent_date?: string; patent_abstract?: string }[] }).patents;
   const out: RootReceipt[] = [];
   for (const p of rows ?? []) {
@@ -620,7 +620,7 @@ async function hnTape(query: string): Promise<RootReceipt[]> {
   }));
 }
 
-function resolveInception(
+export function resolveInception(
   wiki: WikiPage | null,
   wikiRoot: WikiRoot | null,
   wikidata: { at: string; url: string } | null,
