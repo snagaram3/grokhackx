@@ -1,4 +1,5 @@
 import { boostTrends } from "./booster";
+import { hydrateIndustrySeries, recordIndustryHour } from "./example-poi-series";
 import { cachePeek } from "./cache";
 import { fleetHealth, type FleetHealth } from "./fleet";
 import { collectTape } from "./trend-store";
@@ -54,7 +55,7 @@ async function lookupTape(origin: string, phrase: string): Promise<TrendsPayload
 
 export async function runHourlyCollect(origin: string): Promise<HourlyCollectResult> {
   const hour = hourBucket();
-  const [fleet, watch] = await Promise.all([fleetHealth(), listWatchlist()]);
+  const [fleet, watch] = await Promise.all([fleetHealth(), listWatchlist(), hydrateIndustrySeries()]);
   const tape = cachePeek<TrendsPayload>("trends:v1");
   const phrases = uniquePhrases([...watch.entities.map((e) => e.label), tape?.plugged]);
 
@@ -64,6 +65,7 @@ export async function runHourlyCollect(origin: string): Promise<HourlyCollectRes
   if (phrases.length === 0 && tape) {
     const boosted = boostTrends(tape);
     await collectTape(tape, boosted.briefs, { snapshotId: `${hour}|tape` });
+    if (tape.poiCompare) recordIndustryHour(tape.poiCompare, hour);
     snapped.push("tape");
   }
 
@@ -77,6 +79,7 @@ export async function runHourlyCollect(origin: string): Promise<HourlyCollectRes
         }
         const boosted = boostTrends(payload);
         await collectTape(payload, boosted.briefs, { snapshotId: `${hour}|${phrase}` });
+        if (payload.poiCompare) recordIndustryHour(payload.poiCompare, hour);
         snapped.push(phrase);
       } catch {
         skipped.push(phrase);

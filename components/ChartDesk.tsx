@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Desk } from "@/components/desk/Desk";
 import FloorBrief from "@/components/desk/FloorBrief";
+import ExamplePoiCompare from "@/components/desk/ExamplePoiCompare";
+import WorldMap from "@/components/desk/WorldMap";
 import { buildCausation, buildTimeseries } from "@/lib/desk";
 import { buildEventTicks } from "@/lib/event-ticks";
 import { buildMindMap } from "@/lib/mindmap";
 import { alignTotals } from "@/lib/occurrence-overlay";
 import { buildSentiment } from "@/lib/sentiment";
-import type { BoosterPayload, MindNode, QueryInsight, Topic } from "@/lib/types";
+import type { BoosterPayload, ExamplePoiCompare as PoiCompare, ExamplePoiHop, MindNode, Post, QueryInsight, Topic } from "@/lib/types";
+import type { CityId } from "@/lib/geo";
 import type { DeskCategory } from "@/lib/types";
 
 interface ChartDeskProps {
@@ -22,6 +25,10 @@ interface ChartDeskProps {
   takeaway?: string;
   overlayTopics?: Topic[] | null;
   overlayLabel?: string | null;
+  city?: CityId;
+  located?: Post[];
+  examplePoi?: Post[];
+  poiCompare?: PoiCompare | null;
   onSelect: (topic: Topic) => void;
   onHover: (id: string | null) => void;
 }
@@ -37,6 +44,10 @@ export default function ChartDesk({
   takeaway,
   overlayTopics = null,
   overlayLabel = null,
+  city = "all",
+  located = [],
+  examplePoi = [],
+  poiCompare = null,
   onSelect,
   onHover,
 }: ChartDeskProps) {
@@ -75,6 +86,7 @@ export default function ChartDesk({
     return brief?.sentiment ?? buildSentiment(focus);
   }, [focus, brief]);
   const [open, setOpen] = useState<"mind" | "sentiment" | null>(null);
+  const [pairHover, setPairHover] = useState<ExamplePoiHop | null>(null);
   const [inspect, setInspect] = useState<MindNode | null>(null);
   const [bucketT, setBucketT] = useState<string | null>(null);
   const openPanel = useCallback((panel: "mind" | "sentiment" | null) => setOpen(panel), []);
@@ -133,6 +145,21 @@ export default function ChartDesk({
               </div>
             ) : null}
             <Desk.Mind />
+            <div className="world-map--card mt-4 overflow-hidden">
+              <WorldMap
+                topics={topics}
+                located={located}
+                examplePoi={examplePoi}
+                city={city}
+                selectedId={selected?.id ?? focus?.id ?? null}
+                hoverId={hoverId}
+                pairHover={pairHover}
+                liveRefresh={poiCompare?.liveRefresh ?? null}
+                onSelect={onSelect}
+                onHover={onHover}
+              />
+              <ExamplePoiCompare compare={poiCompare} onPairHover={setPairHover} />
+            </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <Desk.Timeseries />
               <Desk.Sentiment />

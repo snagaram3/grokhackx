@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { ApiSourceToggle } from "@/components/ApiSourceToggle";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans({
@@ -39,6 +40,7 @@ export default function RootLayout({
         className={`${plexSans.variable} ${plex.variable} min-h-screen bg-[#07080b] font-sans antialiased text-white`}
       >
         {children}
+        <ApiSourceToggle />
       </body>
     </html>
   );

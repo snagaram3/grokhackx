@@ -275,7 +275,10 @@ export function attachPublicPosts(topics: Topic[], publicPosts: Post[]): Topic[]
     .toSorted((a, b) => b.score - a.score)
     .slice(0, 24);
   for (const p of leftover) {
-    topics.push(hydrate(p.title, { x: [], reddit: [], hn: [], public: [p] }));
+    const topic = hydrate(p.title, { x: [], reddit: [], hn: [], public: [p] });
+    // Keep leftover public singletons unique — NWS titles often share a long prefix.
+    topic.id = slug(`${p.sourceApi || p.platform}-${p.url}`).slice(0, 48) || topic.id;
+    topics.push(topic);
   }
   return topics;
 }

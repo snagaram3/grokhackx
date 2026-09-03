@@ -19,7 +19,24 @@ flowchart LR
   vercelApi --> footprint
 ```
 
-Lineage (AutoLineage): each receipt keeps `tool` + `collectedAt` from the collect step that produced it. RudriQ is the extraction layer. Visible on the desk as a lineage strip; Save .md includes the table.
+Lineage (AutoLineage): each receipt keeps `tool` + `collectedAt` from the collect step that produced it. RudriQ is the extraction layer. Visible on the desk as a lineage strip; Save .md includes the table. Generated handbook at `/handbook`.
+
+## HistGB
+
+Next-window: fitted on last-4 overlap / leaf-score transitions. The label is the next actual count move from receipts. Under 16 transitions the desk keeps L2 ratio stumps.
+Occupancy: fitted on gold inspect tags (official/occupied) when ≥20 labels. Host-class L1 otherwise.
+Never an invented WHY. Thin stays thin.
+
+```mermaid
+flowchart TB
+  receipts[Receipt windows + gold inspect tags] --> features[last-4 counts · occupancy · host · QR]
+  features --> histgb["HistGB next-window and occupancy"]
+  histgb -->|n transitions under 16| stumps[L2 ratio stumps]
+  histgb -->|gold tags under 20| l1[L1 official-host class]
+  histgb --> outlook[rising / peaking / fading]
+  stumps --> outlook
+  l1 --> organic[organic vs occupied]
+```
 
 ## Files
 

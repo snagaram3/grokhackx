@@ -1,7 +1,7 @@
 import { fetchHn, searchHn } from "./hn";
 import { fetchReddit, searchReddit } from "./reddit";
 import { collectPublicApis } from "./public-apis";
-import { fetchX } from "./signals";
+import { fetchGoogleTrendsSafe, fetchX } from "./signals";
 import { geminiChat, hasGoogleKey } from "./gemini";
 import { divergenceOf } from "./metrics";
 import { geoAgent, type GeoQuery } from "./geo";
@@ -23,10 +23,21 @@ export interface SourceResult {
   count: number;
   posts: Post[];
   publicApis?: PublicApiIngest;
+  /** When X is empty, Google Trends RSS receipts land here — never stamped as X. */
+  fallback?: string;
+  fallbackPosts?: Post[];
 }
 
 function fmt(r: SourceResult): string {
-  return `${r.source} ${r.ok ? "ok" : "fail"}(${r.count})`;
+  const extra =
+    r.fallback && (r.fallbackPosts?.length ?? 0) > 0
+      ? ` ${r.fallback}(${r.fallbackPosts!.length})`
+      : "";
+  return `${r.source} ${r.ok ? "ok" : "fail"}(${r.count})${extra}`;
+}
+
+export function mergedPublicPosts(xR: SourceResult, publicR: SourceResult): Post[] {
+  return [...publicR.posts, ...(xR.fallbackPosts ?? [])];
 }
 
 async function collectSource(
@@ -49,9 +60,13 @@ async function collectSource(
   }
 }
 
-async function collectPublicSource(city: GeoQuery["city"], topic?: string): Promise<SourceResult> {
+async function collectPublicSource(
+  city: GeoQuery["city"],
+  topic?: string,
+  enabledSources?: string[],
+): Promise<SourceResult> {
   try {
-    const { posts, ingest } = await collectPublicApis(city, topic);
+    const { posts, ingest } = await collectPublicApis(city, topic, enabledSources);
     const result: SourceResult = {
       source: "public",
       ok: posts.length > 0,
@@ -71,6 +86,7 @@ async function collectPublicSource(city: GeoQuery["city"], topic?: string): Prom
 export function collectorAgent(
   geo: GeoQuery = geoAgent("all"),
   topic?: string,
+  enabledSources?: string[],
 ): {
   reddit: Promise<SourceResult>;
   hn: Promise<SourceResult>;
@@ -81,11 +97,36 @@ export function collectorAgent(
   return {
     reddit: collectSource("reddit", () => (q ? searchReddit(q) : fetchReddit(geo.redditSubs))),
     hn: collectSource("hn", () => (q ? searchHn(q) : fetchHn())),
-    public: collectPublicSource(geo.city, q),
-    x: hasGoogleKey()
-      ? collectSource("x", () => fetchX(geo.label ?? undefined, q))
-      : Promise.resolve({ source: "x", ok: false, count: 0, posts: [] }),
+    public: collectPublicSource(geo.city, q, enabledSources),
+    x: collectXSource(geo, q),
   };
+}
+
+async function collectXSource(geo: GeoQuery, q?: string): Promise<SourceResult> {
+  let xPosts: Post[] = [];
+  if (hasGoogleKey()) {
+    try {
+      xPosts = await fetchX(geo.label ?? undefined, q);
+    } catch (err) {
+      console.error("collector: x fail(0)", err);
+    }
+  }
+  if (xPosts.length) {
+    const result: SourceResult = { source: "x", ok: true, count: xPosts.length, posts: xPosts };
+    console.log(`collector: ${fmt(result)}`);
+    return result;
+  }
+  const trends = await fetchGoogleTrendsSafe(geo.city, q);
+  const result: SourceResult = {
+    source: "x",
+    ok: false,
+    count: 0,
+    posts: [],
+    fallback: trends.length ? "google trends" : undefined,
+    fallbackPosts: trends.length ? trends : undefined,
+  };
+  console.log(`collector: ${fmt(result)}`);
+  return result;
 }
 
 export function collectorSummary(parts: SourceResult[]): string {
@@ -100,7 +141,13 @@ export function healthFrom(results: SourceResult[]): {
   const degraded: string[] = [];
   for (const r of results) {
     sources[r.source] = r.ok;
-    if (!r.ok) degraded.push(`${r.source} offline`);
+    if (r.ok) continue;
+    if (r.fallback && (r.fallbackPosts?.length ?? 0) > 0) {
+      degraded.push(`${r.source} offline · ${r.fallback} fallback`);
+      sources.public = true;
+    } else {
+      degraded.push(`${r.source} offline`);
+    }
   }
   return { sources, degraded };
 }
