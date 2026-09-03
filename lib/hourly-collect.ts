@@ -28,7 +28,7 @@ function hourBucket(at = new Date()): string {
   return d.toISOString();
 }
 
-function uniquePhrases(values: Array<string | null | undefined>): string[] {
+export function uniquePhrases(values: Array<string | null | undefined>): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of values) {
