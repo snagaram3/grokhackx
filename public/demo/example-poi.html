@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HawkxAI · Example POI demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --void: #07080b;
+        --panel: rgba(255, 255, 255, 0.035);
+        --line: rgba(255, 255, 255, 0.1);
+        --ink: #f4f4f5;
+        --mute: rgba(244, 244, 245, 0.55);
+        --amber: #e8a23a;
+        --amber-soft: rgba(232, 162, 58, 0.14);
+        --violet: #a78bfa;
+        --violet-soft: rgba(167, 139, 250, 0.16);
+        --cyan: #7dd3fc;
+        --rose: #fb7185;
+        --up: #34d399;
+        --font-display: "Instrument Serif", Georgia, serif;
+        --font-body: "IBM Plex Sans", system-ui, sans-serif;
+        --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+        --title-size: clamp(1.5rem, 5vw, 3.6rem);
+        --h2-size: clamp(1.25rem, 3.5vw, 2.35rem);
+        --h3-size: clamp(1rem, 2.5vw, 1.5rem);
+        --body-size: clamp(0.8rem, 1.5vw, 1.1rem);
+        --small-size: clamp(0.65rem, 1vw, 0.85rem);
+        --slide-padding: clamp(1rem, 4vw, 3.5rem);
+        --content-gap: clamp(0.5rem, 2vw, 1.5rem);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        overflow-x: hidden;
+      }
+
+      html {
+        scroll-snap-type: y mandatory;
+        scroll-behavior: smooth;
+      }
+
+      body {
+        background: var(--void);
+        color: var(--ink);
+        font-family: var(--font-body);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .slide {
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+        scroll-snap-align: start;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        background:
+          radial-gradient(ellipse at 12% 0%, rgba(232, 162, 58, 0.08), transparent 42%),
+          radial-gradient(ellipse at 88% 20%, rgba(167, 139, 250, 0.07), transparent 40%),
+          linear-gradient(180deg, #0c0e13 0%, var(--void) 55%);
+      }
+
+      .slide::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: radial-gradient(ellipse at 50% 40%, black 20%, transparent 75%);
+        pointer-events: none;
+        opacity: 0.3;
+      }
+
+      .slide-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        max-height: 100%;
+        overflow: hidden;
+        padding: var(--slide-padding);
+        position: relative;
+        z-index: 1;
+        max-width: min(92vw, 1120px);
+        margin: 0 auto;
+        width: 100%;
+        gap: var(--content-gap);
+      }
+
+      .slide-content > * {
+        opacity: 0;
+        transform: translateY(14px);
+        transition:
+          opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+          transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .slide.visible .slide-content > * {
+        opacity: 1;
+        transform: none;
+      }
+
+      .slide.visible .slide-content > *:nth-child(2) {
+        transition-delay: 0.06s;
+      }
+      .slide.visible .slide-content > *:nth-child(3) {
+        transition-delay: 0.12s;
+      }
+      .slide.visible .slide-content > *:nth-child(4) {
+        transition-delay: 0.18s;
+      }
+      .slide.visible .slide-content > *:nth-child(5) {
+        transition-delay: 0.24s;
+      }
+
+      h1,
+      h2 {
+        font-family: var(--font-display);
+        font-weight: 400;
+        letter-spacing: -0.03em;
+        line-height: 0.95;
+      }
+
+      h1 {
+        font-size: var(--title-size);
+      }
+
+      h2 {
+        font-size: var(--h2-size);
+      }
+
+      .kicker {
+        font-family: var(--font-mono);
+        font-size: var(--small-size);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--amber);
+      }
+
+      .lede {
+        font-size: clamp(1rem, 2vw, 1.3rem);
+        color: var(--mute);
+        max-width: 38rem;
+        line-height: 1.45;
+      }
+
+      .mono {
+        font-family: var(--font-mono);
+        font-size: var(--small-size);
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        border: 1px solid var(--line);
+        background: var(--amber-soft);
+        color: var(--amber);
+        font-family: var(--font-mono);
+        font-size: var(--small-size);
+        letter-spacing: 0.04em;
+        padding: 0.28em 0.7em;
+        width: fit-content;
+      }
+
+      .chip--violet {
+        background: var(--violet-soft);
+        color: var(--violet);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+        gap: clamp(0.55rem, 1.4vw, 1rem);
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: clamp(0.75rem, 2vw, 1.5rem);
+        align-items: stretch;
+      }
+
+      .tile {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: clamp(0.75rem, 1.5vw, 1.15rem);
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        text-align: left;
+      }
+
+      .tile strong {
+        font-size: var(--body-size);
+        font-weight: 500;
+      }
+
+      .tile span,
+      .tile p {
+        color: var(--mute);
+        font-size: var(--small-size);
+        line-height: 1.4;
+      }
+
+      .tile .dot {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 0.35rem;
+      }
+
+      .bullet-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: clamp(0.45rem, 1.2vh, 0.85rem);
+      }
+
+      .bullet-list li {
+        font-size: var(--body-size);
+        color: var(--mute);
+        line-height: 1.4;
+        padding-left: 1rem;
+        position: relative;
+      }
+
+      .bullet-list li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.55em;
+        width: 0.35rem;
+        height: 0.35rem;
+        background: var(--amber);
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr auto 1fr;
+        gap: clamp(0.4rem, 1vw, 0.75rem);
+        align-items: center;
+      }
+
+      .flow__arrow {
+        color: var(--mute);
+        font-family: var(--font-mono);
+        font-size: var(--small-size);
+      }
+
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: 1px solid var(--amber);
+        color: var(--amber);
+        font-family: var(--font-mono);
+        font-size: var(--small-size);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.65em 1em;
+        width: fit-content;
+        text-decoration: none;
+      }
+
+      .cta:hover {
+        background: var(--amber-soft);
+        text-decoration: none;
+      }
+
+      a {
+        color: var(--amber);
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .progress-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 2px;
+        width: 0;
+        background: var(--amber);
+        z-index: 40;
+      }
+
+      .nav-dots {
+        position: fixed;
+        right: clamp(0.6rem, 1.5vw, 1.25rem);
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        z-index: 40;
+      }
+
+      .nav-dots button {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        background: transparent;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .nav-dots button[aria-current="true"] {
+        background: var(--amber);
+        border-color: var(--amber);
+      }
+
+      .keyboard-hint {
+        position: fixed;
+        bottom: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(244, 244, 245, 0.35);
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        z-index: 40;
+      }
+
+      .footnote {
+        color: rgba(244, 244, 245, 0.4);
+        font-family: var(--font-mono);
+        font-size: var(--small-size);
+      }
+
+      @media (max-width: 720px) {
+        .split,
+        .flow {
+          grid-template-columns: 1fr;
+        }
+        .flow__arrow {
+          transform: rotate(90deg);
+          justify-self: center;
+        }
+      }
+
+      @media (max-height: 700px) {
+        :root {
+          --slide-padding: clamp(0.75rem, 3vw, 2rem);
+          --content-gap: clamp(0.4rem, 1.5vw, 1rem);
+          --title-size: clamp(1.25rem, 4.5vw, 2.4rem);
+        }
+      }
+
+      @media (max-height: 600px) {
+        .nav-dots,
+        .keyboard-hint {
+          display: none;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .slide-content > * {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="progress-bar" id="progressBar"></div>
+    <nav class="nav-dots" id="navDots" aria-label="Slides"></nav>
+    <p class="keyboard-hint">← → · space · scroll</p>
+
+    <!-- 1 Title -->
+    <section class="slide" data-label="Title">
+      <div class="slide-content">
+        <p class="kicker">HawkxAI · Implementation demo</p>
+        <h1>Example POI:<br />Hugging Face × live tape</h1>
+        <p class="lede">
+          What we shipped: a catalog of proven places, paired with today’s weather and hazard
+          receipts — outcomes only when distance evidence exists.
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem">
+          <span class="chip">audiala/audiala-places</span>
+          <span class="chip chip--violet">CC BY 4.0</span>
+          <span class="chip">400 km pairs</span>
+          <span class="chip">no title geocode</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 What is HF POI -->
+    <section class="slide" data-label="HF data">
+      <div class="slide-content">
+        <p class="kicker">01 · The data</p>
+        <h2>Hugging Face travel places</h2>
+        <p class="lede">
+          Dataset <span class="mono">audiala/audiala-places</span> — landmarks with lat/lon already
+          stamped. HawkxAI streams the Hub CSV when it finishes in time, else uses a vendored sample.
+        </p>
+        <div class="grid">
+          <div class="tile">
+            <strong>Fields we keep</strong>
+            <span>name · city · country · lat/lon · category · Wikidata URL · sitelinks</span>
+          </div>
+          <div class="tile">
+            <strong>Live refresh</strong>
+            <span><span class="mono">hub</span> = streamed CSV · <span class="mono">sample</span> = local slice · ~96 places max</span>
+          </div>
+          <div class="tile">
+            <strong>On the map</strong>
+            <span><span class="dot" style="background: var(--violet)"></span>violet pins — separate from live receipts so they never merge</span>
+          </div>
+        </div>
+        <p class="footnote">Never invents a place from a title. Coords come from the dataset only.</p>
+      </div>
+    </section>
+
+    <!-- 3 What we compare -->
+    <section class="slide" data-label="Compare">
+      <div class="slide-content">
+        <p class="kicker">02 · The compare</p>
+        <h2>Fixed places × live public tape</h2>
+        <div class="split">
+          <div class="tile">
+            <strong><span class="dot" style="background: var(--violet)"></span>Example POI</strong>
+            <p>British Museum · Cairo · Sydney Opera House · Kiyomizu-dera · …</p>
+            <p class="mono">HF:audiala-places</p>
+          </div>
+          <div class="tile">
+            <strong><span class="dot" style="background: var(--cyan)"></span>Live located tape</strong>
+            <p>Open-Meteo / NWS weather · USGS quakes · NASA EONET hazards</p>
+            <p class="mono">receipts that already have a place</p>
+          </div>
+        </div>
+        <p class="lede" style="max-width: none">
+          For each live receipt with coordinates, find the <em>nearest</em> example POI inside
+          <strong>400 km</strong>. No geocoding of headlines. No invented WHY.
+        </p>
+      </div>
+    </section>
+
+    <!-- 4 How it works -->
+    <section class="slide" data-label="Pipeline">
+      <div class="slide-content">
+        <p class="kicker">03 · Pipeline</p>
+        <h2>What the code does</h2>
+        <div class="flow">
+          <div class="tile">
+            <strong>Collect</strong>
+            <span>Stream Hub CSV or load sample · stamp lineage</span>
+          </div>
+          <span class="flow__arrow">→</span>
+          <div class="tile">
+            <strong>Pair</strong>
+            <span>Haversine ≤ 400 km · hop pin ids for the map</span>
+          </div>
+          <span class="flow__arrow">→</span>
+          <div class="tile">
+            <strong>Call</strong>
+            <span>Industry buckets · outlook · hourly window</span>
+          </div>
+        </div>
+        <ul class="bullet-list">
+          <li>Category → industry (museum→entertainment, temple→hospitality, tower→real-estate…)</li>
+          <li>Hover a pair row → both pins light + dashed hop (bowed when co-located)</li>
+          <li>Place filter floats nearby POIs (e.g. Tokyo keeps Kyoto bright within 450 km)</li>
+          <li>Hourly <span class="mono">liveNear</span> persists in Cloud SQL so cold starts keep the window</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 5 Outcomes -->
+    <section class="slide" data-label="Outcomes">
+      <div class="slide-content">
+        <p class="kicker">04 · Outcomes</p>
+        <h2>What operators see</h2>
+        <div class="grid">
+          <div class="tile">
+            <strong>Pairs table</strong>
+            <span>POI · industry · live source · km — evidence of proximity</span>
+          </div>
+          <div class="tile">
+            <strong>Industry cards</strong>
+            <span>outlook thin / stable / rising / peaking · variables &amp; constraints from overlap only</span>
+          </div>
+          <div class="tile">
+            <strong>Headline + next action</strong>
+            <span>e.g. weather on entertainment · hazard near hospitality → Safety unmet</span>
+          </div>
+          <div class="tile">
+            <strong>Stay thin when thin</strong>
+            <span>&lt; 2 pairs → no invented industry call · need a second hour for next-window</span>
+          </div>
+        </div>
+        <p class="footnote">Measured overlap only — never a story about why the place “matters.”</p>
+      </div>
+    </section>
+
+    <!-- 6 Where to demo -->
+    <section class="slide" data-label="Try it">
+      <div class="slide-content">
+        <p class="kicker">05 · Live path</p>
+        <h2>Try it on HawkxAI</h2>
+        <ol class="bullet-list" style="list-style: none">
+          <li><strong style="color: var(--ink)">1.</strong> Open Trends → <strong style="color: var(--ink)">Mind</strong></li>
+          <li><strong style="color: var(--ink)">2.</strong> Jump <strong style="color: var(--ink)">World</strong> — violet POIs + live pins</li>
+          <li><strong style="color: var(--ink)">3.</strong> Scroll the Example POI strip — industry cards + pair table</li>
+          <li><strong style="color: var(--ink)">4.</strong> Hover Cairo / British Museum — hop lights both pins</li>
+          <li><strong style="color: var(--ink)">5.</strong> Place = Tokyo — Kiyomizu stays bright; far POIs dim</li>
+        </ol>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center">
+          <a class="cta" href="https://hawkxai.com/" target="_blank" rel="noreferrer">Open hawkxai.com →</a>
+          <span class="mono">Strip shows: hub · a39e858 · N pairs</span>
+        </div>
+        <p class="footnote">
+          Shipped in PRs #76–#78 ·
+          <a href="https://github.com/snagaram3/grokhackx" target="_blank" rel="noreferrer">snagaram3/grokhackx</a>
+        </p>
+      </div>
+    </section>
+
+    <script>
+      class SlidePresentation {
+        constructor() {
+          this.slides = [...document.querySelectorAll(".slide")];
+          this.currentSlide = 0;
+          this.progress = document.getElementById("progressBar");
+          this.navDotsContainer = document.getElementById("navDots");
+          this.wheelLock = false;
+          this.setupNavDots();
+          this.setupIntersectionObserver();
+          this.setupKeyboardNav();
+          this.setupTouchNav();
+          this.setupWheelNav();
+          this.setupProgressBar();
+          this.slides[0]?.classList.add("visible");
+          this.syncChrome();
+        }
+
+        goTo(index) {
+          const i = Math.max(0, Math.min(this.slides.length - 1, index));
+          this.slides[i].scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+
+        syncChrome() {
+          [...this.navDotsContainer.children].forEach((btn, i) => {
+            if (i === this.currentSlide) btn.setAttribute("aria-current", "true");
+            else btn.removeAttribute("aria-current");
+          });
+        }
+
+        setupIntersectionObserver() {
+          const io = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                  entry.target.classList.add("visible");
+                  this.currentSlide = this.slides.indexOf(entry.target);
+                  this.syncChrome();
+                }
+              });
+            },
+            { threshold: 0.35 },
+          );
+          this.slides.forEach((s) => io.observe(s));
+        }
+
+        setupNavDots() {
+          this.navDotsContainer.innerHTML = "";
+          this.slides.forEach((slide, i) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.setAttribute("aria-label", slide.dataset.label || "Slide " + (i + 1));
+            btn.addEventListener("click", () => this.goTo(i));
+            this.navDotsContainer.appendChild(btn);
+          });
+        }
+
+        setupKeyboardNav() {
+          document.addEventListener("keydown", (e) => {
+            if (e.target instanceof HTMLInputElement) return;
+            if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(e.key)) {
+              e.preventDefault();
+              this.goTo(this.currentSlide + 1);
+            }
+            if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) {
+              e.preventDefault();
+              this.goTo(this.currentSlide - 1);
+            }
+            if (e.key === "Home") {
+              e.preventDefault();
+              this.goTo(0);
+            }
+            if (e.key === "End") {
+              e.preventDefault();
+              this.goTo(this.slides.length - 1);
+            }
+          });
+        }
+
+        setupTouchNav() {
+          let y0 = 0;
+          document.addEventListener(
+            "touchstart",
+            (e) => {
+              y0 = e.changedTouches[0].screenY;
+            },
+            { passive: true },
+          );
+          document.addEventListener(
+            "touchend",
+            (e) => {
+              const dy = e.changedTouches[0].screenY - y0;
+              if (Math.abs(dy) < 48) return;
+              this.goTo(this.currentSlide + (dy < 0 ? 1 : -1));
+            },
+            { passive: true },
+          );
+        }
+
+        setupWheelNav() {
+          window.addEventListener(
+            "wheel",
+            (e) => {
+              if (this.wheelLock || Math.abs(e.deltaY) < 20) return;
+              this.wheelLock = true;
+              this.goTo(this.currentSlide + (e.deltaY > 0 ? 1 : -1));
+              setTimeout(() => {
+                this.wheelLock = false;
+              }, 700);
+            },
+            { passive: true },
+          );
+        }
+
+        setupProgressBar() {
+          window.addEventListener(
+            "scroll",
+            () => {
+              const max = document.documentElement.scrollHeight - window.innerHeight;
+              if (max <= 0) return;
+              this.progress.style.width = (window.scrollY / max) * 100 + "%";
+            },
+            { passive: true },
+          );
+        }
+      }
+
+      new SlidePresentation();
+    </script>
+  </body>
+</html>

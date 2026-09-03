@@ -1,76 +1,80 @@
 "use client";
 
-import { divergenceLabel, PLATFORM_LABEL, totalScore, VELOCITY_MARK } from "@/lib/ui-helpers";
-import { leadTopic, topicPosts } from "@/lib/watchlist-lookup";
-import type { TrendsPayload } from "@/lib/types";
+import type { RootTrace } from "@/lib/insights-types";
 
-export default function InsightsDetail({ payload }: { payload: TrendsPayload | null }) {
-  const lead = leadTopic(payload);
-  const posts = topicPosts(lead).slice(0, 8);
-  const query = payload?.query ?? null;
+function formatWhen(iso: string | null): string {
+  if (!iso) return "undated";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso.slice(0, 10);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(t));
+}
 
-  if (!lead) {
+export default function InsightsDetail({ trace }: { trace: RootTrace | null }) {
+  if (!trace) {
     return (
       <div className="flex h-full items-center justify-center p-4">
-        <p className="signal-label text-center">
-          Live facts land here after lookup. Never invented spend.
-        </p>
+        <p className="signal-label text-center">Oldest receipts land here. Newest stays at the surface.</p>
       </div>
     );
   }
 
-  const score = Math.round(totalScore(lead));
-
   return (
     <aside className="flex h-full flex-col gap-4 overflow-y-auto p-4">
       <div>
-        <p className="text-sm font-medium tracking-tight">{lead.label}</p>
+        <p className="text-sm font-medium tracking-tight">{trace.originTitle ?? trace.query}</p>
         <p className="mt-0.5 font-mono text-[10px] tabular-nums text-white/45">
-          {VELOCITY_MARK[lead.velocity]} {lead.velocity}
-          {" · "}
-          {divergenceLabel(lead)}
-          {" · "}
-          score {score}
-          {query ? ` · ${query.kind}` : ""}
+          {trace.thin ? "thin" : "rooted"}
+          {trace.firstRecord?.at ? ` · first ${formatWhen(trace.firstRecord.at)}` : ""}
         </p>
+        {trace.originLag ? (
+          <p className="mt-2 text-[12px] leading-relaxed text-white/70">
+            {trace.originLag.lagYears}y between {trace.originLag.claimedSource} {trace.originLag.claimedAt.slice(0, 4)}{" "}
+            and first dated receipt {formatWhen(trace.originLag.firstRecordAt)}. Measured gap — not a WHY.
+          </p>
+        ) : null}
       </div>
 
-      {query?.floor ? (
-        <p className="text-[12px] leading-relaxed text-white/75">{query.floor}</p>
+      {trace.originExtract ? (
+        <p className="text-[12px] leading-relaxed text-white/75">{trace.originExtract}</p>
       ) : (
-        <p className="text-[12px] text-white/50">
-          Thin tape. Facts stay on receipts — no invented dollar impact.
-        </p>
+        <p className="text-[12px] text-white/50">No origin extract. We do not invent one.</p>
       )}
 
-      {payload?.degraded.length ? (
-        <ul className="space-y-1">
-          {payload.degraded.map((msg) => (
-            <li key={msg} className="signal-label">
-              {msg}
-            </li>
-          ))}
-        </ul>
+      {trace.parents.length ? (
+        <div>
+          <p className="signal-label">Family</p>
+          <ul className="mt-1 space-y-0.5">
+            {trace.parents.map((p) => (
+              <li key={p.label} className="text-[12px] text-white/70">
+                {p.label}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       <div>
-        <p className="signal-label">Receipts · {posts.length}</p>
-        {posts.length === 0 ? (
-          <p className="mt-1 text-[12px] text-white/50">No dated receipts yet.</p>
+        <p className="signal-label">Oldest receipts · {trace.receipts.length}</p>
+        {trace.receipts.length === 0 ? (
+          <p className="mt-1 text-[12px] text-white/50">No dated receipts in this pull.</p>
         ) : (
           <ul className="mt-1 space-y-1">
-            {posts.map((p) => (
-              <li key={`${p.url}-${p.createdAt}`}>
+            {trace.receipts.map((r) => (
+              <li key={`${r.url}-${r.at ?? "x"}`}>
                 <a
-                  href={p.url}
+                  href={r.url}
                   target="_blank"
                   rel="noreferrer"
                   className="block rounded-md px-1 py-1 hover:bg-white/[0.04]"
                 >
-                  <span className="line-clamp-2 text-[12px] leading-snug text-white/88">{p.title}</span>
+                  <span className="line-clamp-2 text-[12px] leading-snug text-white/88">{r.title}</span>
                   <span className="mt-0.5 block truncate font-mono text-[10px] text-white/40">
-                    {PLATFORM_LABEL[p.platform]}
-                    {p.sourceApi ? ` · ${p.sourceApi}` : ""}
+                    {r.source} · {formatWhen(r.at)}
                   </span>
                 </a>
               </li>

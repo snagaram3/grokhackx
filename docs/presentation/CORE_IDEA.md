@@ -2,7 +2,7 @@
 
 Capturing the current trend hashtags/ QRs/phrases/URLs etc and analyze them and co-relate them on why they are treanding and collect this information to create a cool interactive dashboard that gives us most useful information to all age groups and compititors in the bussiness that will leverage their campains.
 
-**Additional desks:** look up a particular word or phrase. A marketing team opens **Footprint** (`/footprint`) and plugs a campaign name. A researcher opens **Research** (`/research`) and digs Wikipedia, the open web, HN, Reddit, and X for a topic brief with cited receipts. Trending words stay on `/`. Both desks are additive.
+**Additional desks:** look up a particular word or phrase. A marketing team opens **Footprint** (`/footprint`) and plugs a campaign name. **Insights** (`/insights`) traces that name to its origin page, family categories, and oldest dated receipt — a taproot, not a search ranking. A researcher opens **Research** (`/research`) and digs Wikipedia, the open web, HN, Reddit, and X for a topic brief with cited receipts. Trending words stay on `/`. Desks are additive.
 
 ## Plug-and-play desk
 
@@ -52,6 +52,7 @@ The map stays the map. Booster sits beside it: capture trending words **or** loo
 | Surface | Owner |
 |---|---|
 | Phrase lookup | `components/desk/PhraseLookup.tsx` + header `⌘K` |
+| Insights taproot | `components/insights/` + `GET /api/insights?q=` + `lib/insights-roots.ts` |
 | Research desk | `components/research/ResearchDesk.tsx` + `GET /api/research?q=` + `lib/research-brief.ts` |
 | Correlation mind map | `components/MindDesk.tsx` + `lib/mindmap.ts` |
 | Category collect + leaf prediction | `lib/collect.ts` · `lib/predict.ts` · `lib/trend-store.ts` · `GET /api/collect` |
@@ -75,11 +76,12 @@ The Booster Agent re-ranks these from real gaps in each run. Seed list:
 4. Overlay GDELT / NWS events as lagged markers on the same timeseries (never as an invented WHY).
 5. Age-group toggle on the map itself — **shipped:** header lens composes desk, map hover, mind subtitle, and the keepable brief.
 6. Brand-risk radar (controversy vs ride-along).
-7. Geo / city pulse — **shipped:** default tape is worldwide (news, weather, Reddit, YouTube, X). Place filter still zooms to a metro.
+7. Geo / city pulse — **shipped:** default tape is worldwide. Place filter zooms a metro. The mind desk now plots a live world under the correlation graph — only receipts that already carry coordinates (USGS, Open-Meteo, EONET, NWS points).
 8. Export a one-page campaign brief for a competitor — **shipped:** Copy / Save .md / Print from receipts. Tape-watch stars persist to Cloud SQL (`tape_watch`) when `TREND_DB_*` is set; localStorage is the offline fallback.
 9. Shared-artifact bridges on the mind map — keep capturing overlapping campaign codes; never invent a dash.
 10. Shareable footprint URL (`/footprint?q=`) — **shipped:** Footprint opens from the trend desk; trending words stay on `/`.
 11. Research desk for topic digs (`/research?q=`) — **shipped:** Wikipedia + web + PubMed + arXiv + USPTO + HN + Reddit + X + optional Gemini + Google Search pass; Copy / Save .md / Print; off-query receipts dropped; senses from Wikipedia titles; angles filled from dated receipts. Click an open question to dig that angle.
 12. Collect trending words + sentiment into 10 category databases, then predict on each mind-map leaf — **shipped:** memory/JSON now; Postgres `hawkxai_{category}` once `TREND_DB_*` is set.
 13. RudriQ / AutoLineage on receipts — **shipped thin:** `tool` + `collectedAt` on each receipt, lineage strip on Footprint and Research, lineage table inside Save .md. Not a second product page.
-14. Watchlist desk (`/watchlist`) — **shipped phase 1:** persist companies/campaigns on Cloud SQL, Public × POI overlap snapshots, organic vs occupancy, last-window Δ, next-window from snapshot history. Click a row → Footprint. Trained HistGB waits for labeled Camry rows.
+14. Watchlist desk (`/watchlist`) — **shipped:** persist POIs, Public × POI overlap, organic vs occupancy, last-window Δ. Next-window is HistGB on receipt transitions when ≥16 exist; L2 stumps otherwise. Occupancy HistGB waits for ≥20 gold inspect tags.
+15. Generated handbook (`/handbook`, `GET /api/handbook`, `python -m handbook.render`) — **shipped:** architecture mermaid, permission table, HistGB model card, AutoLineage. Flip `fleet/permissions.json` and refresh.

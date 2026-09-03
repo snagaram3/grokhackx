@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 build the dockerfile and update docker run
 
-Run this from the grokhackx repo root (`Dockerfile` lives there). Do both steps every time — never build without replacing the running container, and never restart an old image.
+Run this from the HawkxAI repo root (`Dockerfile` lives there). Do both steps every time — never build without replacing the running container, and never restart an old image.
 
 On a `/loop` tick, first follow [rebuild-on-merge](../rebuild-on-merge/SKILL.md). Only continue here if that skill reports a new merge.
 

@@ -14,9 +14,7 @@ export default function InsightsOverview({
   if (names.length === 0) {
     return (
       <div className="flex h-full items-center justify-center p-4">
-        <p className="signal-label text-center">
-          No names yet · Look up a campaign to fill this list
-        </p>
+        <p className="signal-label text-center">No traces yet · Plug a name to go down</p>
       </div>
     );
   }
@@ -35,7 +33,7 @@ export default function InsightsOverview({
           }`}
         >
           <p className="truncate font-medium text-white">{name}</p>
-          <p className="mt-0.5 text-[11px] text-white/50">Live tape · click to load</p>
+          <p className="mt-0.5 text-[11px] text-white/50">Taproot · click to retrace</p>
         </button>
       ))}
     </div>

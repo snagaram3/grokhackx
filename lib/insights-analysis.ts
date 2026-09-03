@@ -8,7 +8,7 @@ import type {
   PublicDataSource,
 } from "./insights-types";
 
-const INDUSTRY_FACTORS: Record<IndustryCategory, string[]> = {
+export const INDUSTRY_FACTORS: Record<IndustryCategory, string[]> = {
   technology: [
     "Innovation Index",
     "Adoption Rate",
@@ -81,7 +81,7 @@ const INDUSTRY_FACTORS: Record<IndustryCategory, string[]> = {
   ],
 };
 
-const INDUSTRY_CONSTRAINTS: Record<IndustryCategory, string[]> = {
+export const INDUSTRY_CONSTRAINTS: Record<IndustryCategory, string[]> = {
   technology: ["Scalability", "Security", "Performance", "Compatibility"],
   finance: ["Compliance", "Risk Management", "Liquidity", "Capital Requirements"],
   healthcare: ["Safety", "Efficacy", "Regulatory", "Accessibility"],
@@ -94,7 +94,7 @@ const INDUSTRY_CONSTRAINTS: Record<IndustryCategory, string[]> = {
   manufacturing: ["Quality", "Capacity", "Resources", "Compliance"],
 };
 
-const INDUSTRY_VARIABLES: Record<IndustryCategory, string[]> = {
+export const INDUSTRY_VARIABLES: Record<IndustryCategory, string[]> = {
   technology: ["Platform Type", "Target Market", "Revenue Model", "Stage"],
   finance: ["Asset Class", "Risk Profile", "Term Length", "Instrument Type"],
   healthcare: ["Treatment Type", "Patient Demographics", "Provider Type", "Coverage"],
@@ -113,8 +113,8 @@ export async function analyzeIndustry(
   publicSources: PublicDataSource[]
 ): Promise<IndustryAnalysis> {
   const factors = generateFactors(category, publicSources);
-  const constraints = generateConstraints(category);
-  const variables = generateVariables(category);
+  const constraints = generateConstraints(category, publicSources);
+  const variables = generateVariables(category, publicSources);
   
   const score = calculateIndustryScore(factors, constraints, variables);
   const insights = generateIndustryInsights(category, factors, constraints, variables);
@@ -135,29 +135,55 @@ function generateFactors(
 ): IndustryFactor[] {
   const factorNames = INDUSTRY_FACTORS[category];
   const avgReliability = publicSources.reduce((sum, s) => sum + s.reliability, 0) / publicSources.length;
+  const totalDataPoints = publicSources.reduce((sum, s) => sum + s.dataPoints, 0);
   
   return factorNames.map((name, index) => {
-    const baseValue = 0.5 + Math.random() * 0.4;
-    const weight = (factorNames.length - index) / factorNames.length;
-    const trend = Math.random() > 0.5 ? "up" : Math.random() > 0.5 ? "down" : "stable";
+    // Deterministic value based on data coverage and reliability
+    const dataPointRatio = Math.min(1, totalDataPoints / 10000);
+    const positionWeight = (factorNames.length - index) / factorNames.length;
+    const baseValue = 0.4 + (dataPointRatio * 0.35) + (avgReliability * 0.25);
+    
+    const weight = positionWeight * avgReliability;
+    
+    // Deterministic trend based on reliability and data volume
+    let trend: "up" | "down" | "stable";
+    if (avgReliability > 0.85 && dataPointRatio > 0.7) {
+      trend = "up";
+    } else if (avgReliability < 0.7 || dataPointRatio < 0.4) {
+      trend = "down";
+    } else {
+      trend = "stable";
+    }
     
     return {
       id: `factor-${index}`,
       name,
-      weight: weight * avgReliability,
+      weight,
       value: baseValue * 100,
       unit: name.includes("Rate") || name.includes("Ratio") ? "%" : "index",
-      trend: trend as "up" | "down" | "stable",
+      trend,
     };
   });
 }
 
-function generateConstraints(category: IndustryCategory): IndustryConstraint[] {
+function generateConstraints(
+  category: IndustryCategory,
+  publicSources: PublicDataSource[]
+): IndustryConstraint[] {
   const constraintNames = INDUSTRY_CONSTRAINTS[category];
+  const avgReliability = publicSources.reduce((sum, s) => sum + s.reliability, 0) / publicSources.length;
+  const totalDataPoints = publicSources.reduce((sum, s) => sum + s.dataPoints, 0);
   
   return constraintNames.map((name, index) => {
-    const threshold = 70 + Math.random() * 20;
-    const current = 50 + Math.random() * 50;
+    // Deterministic thresholds based on industry standards
+    const baseThreshold = 70;
+    const threshold = baseThreshold + (index * 3);
+    
+    // Current value based on actual data quality
+    const dataHealth = (avgReliability * 0.6) + (Math.min(1, totalDataPoints / 8000) * 0.4);
+    const positionFactor = 1 - (index * 0.08);
+    const current = dataHealth * 100 * positionFactor;
+    
     const met = current >= threshold;
     const impact = index < 2 ? "critical" : index < 4 ? "high" : index < 6 ? "medium" : "low";
     
@@ -172,8 +198,13 @@ function generateConstraints(category: IndustryCategory): IndustryConstraint[] {
   });
 }
 
-function generateVariables(category: IndustryCategory): IndustryVariable[] {
+function generateVariables(
+  category: IndustryCategory,
+  publicSources: PublicDataSource[]
+): IndustryVariable[] {
   const variableNames = INDUSTRY_VARIABLES[category];
+  const totalDataPoints = publicSources.reduce((sum, s) => sum + s.dataPoints, 0);
+  const avgReliability = publicSources.reduce((sum, s) => sum + s.reliability, 0) / publicSources.length;
   
   return variableNames.map((name, index) => {
     const types = ["numeric", "boolean", "categorical"] as const;
@@ -181,19 +212,27 @@ function generateVariables(category: IndustryCategory): IndustryVariable[] {
     
     let value: string | number | boolean;
     if (type === "numeric") {
-      value = Math.floor(Math.random() * 100);
+      // Deterministic numeric value based on data metrics
+      value = Math.floor(50 + (avgReliability * 30) + ((totalDataPoints / 10000) * 20));
     } else if (type === "boolean") {
-      value = Math.random() > 0.5;
+      // Based on data quality threshold
+      value = avgReliability > 0.75;
     } else {
-      value = ["A", "B", "C", "D"][Math.floor(Math.random() * 4)];
+      // Categorical based on data quality tiers
+      const tier = avgReliability > 0.85 ? 0 : avgReliability > 0.75 ? 1 : avgReliability > 0.65 ? 2 : 3;
+      value = ["A", "B", "C", "D"][tier];
     }
+    
+    // Impact based on position and data quality
+    const positionImpact = 1 - (index * 0.06);
+    const impact = Math.min(1, 0.6 + (avgReliability * 0.2) + (positionImpact * 0.2));
     
     return {
       id: `variable-${index}`,
       name,
       type,
       value,
-      impact: 0.6 + Math.random() * 0.4,
+      impact,
     };
   });
 }

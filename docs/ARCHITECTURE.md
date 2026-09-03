@@ -1,6 +1,8 @@
 # HawkxAI runtime architecture
 
-Live diagrams: [`/architecture`](../app/architecture/page.tsx) (Mermaid). Source of the charts: [`lib/architecture-diagrams.ts`](../lib/architecture-diagrams.ts).
+Contest poster (use this on Devpost and in the video): [`/architecture`](../app/architecture/page.tsx) or the static export [`public/demo/architecture.html`](../public/demo/architecture.html).
+
+Live mermaid detail: [`/architecture`](../app/architecture/page.tsx). Source of the charts: [`lib/architecture-diagrams.ts`](../lib/architecture-diagrams.ts).
 
 **Stack:** Next.js 14 / React 18 · Vercel `iad1` · Cloud SQL Postgres 16 `us-east4` · ten category databases on one instance.
 
@@ -11,7 +13,7 @@ Hobby has no static egress IPs. Cloud SQL currently allows `0.0.0.0/0` plus this
 ```mermaid
 flowchart LR
   gh["GitHub<br/>snagaram3/grokhackx"]
-  vercel["Vercel project<br/>hawk-ai4/grokhackx"]
+  vercel["Vercel hawkxai.vercel.app<br/>Cloud Run hawkxai also live"]
   fn["Next.js 14 functions<br/>region iad1"]
   env["Env: GOOGLE_API_KEY<br/>FLEET_URL<br/>YOUTUBE_API_KEY<br/>TREND_DB_*"]
   sql["Cloud SQL Postgres 16<br/>hawkxai-trends · us-east4<br/>35.245.139.208:5432 TLS"]
@@ -27,7 +29,7 @@ flowchart LR
 | Piece | Value |
 |---|---|
 | GitHub | `snagaram3/grokhackx` |
-| Vercel team / project | `hawk-ai4` / `grokhackx` (`prj_8yCxNZaUrJhVFDL9Ijbp5pqhJ1Gb`) |
+| Vercel team / project | `hawk-ai4` / `grokhackx` (`prj_8yCxNZaUrJhVFDL9Ijbp5pqhJ1Gb`) · live `hawkxai.vercel.app` |
 | Production | [hawkxai.com](https://hawkxai.com) |
 | Function region | `iad1` (Northern Virginia) |
 | GCP project (fleet / Cloud Run) | `project-16647bb0-5d45-4404-956` (display **Hawkxai**). Cloud SQL `hawkxai-trends` is a separate instance — reuse it; do not create a second one here. |
@@ -78,7 +80,7 @@ flowchart TB
   pg --> culture[(hawkxai_culture)]
 ```
 
-Each database gets the same tables: `snapshots`, `words`, `sentiments`, `artifacts`, `receipts`, `predictions`. Provision once from `grokhackx/`:
+Each database gets the same tables: `snapshots`, `words`, `sentiments`, `artifacts`, `receipts`, `predictions`. Provision once from the repo root:
 
 ```bash
 npm run provision:trend-db
@@ -88,7 +90,7 @@ npm run provision:trend-db
 
 ## Env contract
 
-Local: `grokhackx/.env.local` (gitignored). Vercel: Production + Preview **sensitive**; Development cannot be sensitive.
+Local: `.env.local` in the repo root (gitignored). Vercel: Production + Preview **sensitive**; Development cannot be sensitive.
 
 | Variable | Role |
 |---|---|

@@ -163,3 +163,59 @@ export interface InsightsPayload {
   summary: string;
   degraded: string[];
 }
+
+/** Depth well for Insights — not a search ranking. Higher depth = closer to origin. */
+export type RootLayerKind = "plug" | "sense" | "tape" | "origin" | "parent" | "first-record" | "lag";
+
+export interface RootSense {
+  id: string;
+  label: string;
+  url: string;
+}
+
+export interface OriginLag {
+  claimedAt: string;
+  claimedSource: "wikidata" | "extract" | "category";
+  claimedUrl: string | null;
+  firstRecordAt: string;
+  lagYears: number;
+}
+
+export interface RootReceipt {
+  title: string;
+  url: string;
+  source: string;
+  at: string | null;
+  snippet: string;
+}
+
+export interface RootLayer {
+  id: string;
+  kind: RootLayerKind;
+  depth: number;
+  label: string;
+  detail: string;
+  receipt?: RootReceipt;
+}
+
+export interface RootParent {
+  label: string;
+}
+
+export interface RootTrace {
+  query: string;
+  updatedAt: string;
+  originTitle: string | null;
+  originExtract: string | null;
+  originUrl: string | null;
+  layers: RootLayer[];
+  parents: RootParent[];
+  firstRecord: RootReceipt | null;
+  tapeFirst: RootReceipt | null;
+  receipts: RootReceipt[];
+  senses: RootSense[];
+  senseId: string | null;
+  originLag: OriginLag | null;
+  degraded: string[];
+  thin: boolean;
+}

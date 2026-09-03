@@ -3,7 +3,7 @@ import ArchitectureDesk from "@/components/architecture/ArchitectureDesk";
 
 export const metadata: Metadata = {
   title: "HawkxAI · Architecture",
-  description: "Vercel, Cloud SQL, and the collect-then-predict path.",
+  description: "Cloud Run desk and ADK fleet: Gemini 3.5, GCS snapshots, Cloud SQL lineage. Receipts only.",
 };
 
 export default function ArchitecturePage() {
