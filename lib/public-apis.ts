@@ -2,6 +2,7 @@ import { cacheGet, cacheSet } from "./cache";
 import { stampPost } from "./lineage";
 import type { CityId } from "./geo";
 import { tvCountry, weatherSpots, youtubeRegions } from "./geo";
+import { filterByEnabledSources } from "./api-source-selection";
 import { pickFeeds, recordPulls } from "./rl";
 import type { Post, PublicApiFeedStat, PublicApiIngest } from "./types";
 
@@ -1682,14 +1683,14 @@ const FEEDS: Feed[] = [
   },
 ];
 
+export function publicApiFeedNames(): string[] {
+  return FEEDS.map((f) => f.name);
+}
+
 function selectFeeds(topic?: string, enabledSources?: string[]): Feed[] {
   const q = topic?.trim();
   let available = FEEDS.filter((f) => !f.include || f.include(q));
-  
-  // Filter by enabled sources if provided
-  if (enabledSources && enabledSources.length > 0) {
-    available = available.filter((f) => enabledSources.includes(f.name));
-  }
+  available = filterByEnabledSources(available, enabledSources);
   
   const names = available.map((f) => f.name);
   const core = q

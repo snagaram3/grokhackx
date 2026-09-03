@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildTrendPins, locatedReceipts, parseUrlGeo, postGeo, validGeo } from "./trend-geo";
+import { buildTrendPins, examplePinId, locatedReceipts, parseUrlGeo, postGeo, receiptPinId, validGeo } from "./trend-geo";
 import { topoLandToMultiPolygon } from "./world-land";
 import type { Topic } from "./types";
 
@@ -106,6 +106,32 @@ test("Place filter adds a lens pin that is not counted as a receipt", () => {
   assert.equal(pins.length, 1);
   assert.equal(pins[0]?.kind, "lens");
   assert.equal(pins[0]?.label, "Tokyo");
+});
+
+test("stored geo wins over a conflicting URL, but invalid stored geo falls back to the URL", () => {
+  const stored = {
+    platform: "public" as const,
+    title: "Tokyo 28°C",
+    url: "https://open-meteo.com/en/docs#latitude=48.86&longitude=2.35",
+    score: 40,
+    createdAt: "2026-08-29T00:00:00.000Z",
+    sourceApi: "Open-Meteo",
+    geo: { lat: 35.68, lon: 139.69, label: "Tokyo" },
+  };
+  assert.equal(postGeo(stored)?.lat, 35.68);
+  assert.equal(postGeo(stored)?.lon, 139.69);
+
+  const junk = {
+    ...stored,
+    geo: { lat: 99, lon: 0, label: "Nowhere" },
+  };
+  assert.equal(postGeo(junk)?.lat, 48.86);
+  assert.equal(postGeo(junk)?.label, "Nowhere");
+});
+
+test("example and receipt pin ids stay distinct at the same 0.1° cell", () => {
+  assert.equal(receiptPinId(35.68, 139.69), "35.7,139.7");
+  assert.equal(examplePinId(35.68, 139.69), "ex:35.7,139.7");
 });
 
 test("buildTrendPins merges nearby receipts and keeps the shorter title", () => {

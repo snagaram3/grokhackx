@@ -90,19 +90,93 @@ function getDefaultSelection(): ApiSourceSelection {
   };
 }
 
-export function loadApiSourceSelection(): ApiSourceSelection {
-  if (typeof window === "undefined") return getDefaultSelection();
-  
+/** Parse localStorage JSON. Corrupt or unshaped payloads fall back to every catalog source. */
+export function parseApiSourceSelection(raw: string | null): ApiSourceSelection {
+  if (!raw) return getDefaultSelection();
+
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return getDefaultSelection();
-    
-    const parsed = JSON.parse(stored) as ApiSourceSelection;
+    const parsed = JSON.parse(raw) as ApiSourceSelection;
     if (!parsed.enabled || !Array.isArray(parsed.enabled)) {
       return getDefaultSelection();
     }
-    
     return parsed;
+  } catch {
+    return getDefaultSelection();
+  }
+}
+
+/**
+ * Query `sources=` wins over the cookie. `undefined` means "no preference / all feeds".
+ * Cookie must be a JSON array of names (the toggle writes `JSON.stringify(enabled)`),
+ * not the `{enabled, updatedAt}` localStorage object.
+ */
+export function parseEnabledSources(
+  sourcesParam: string | null | undefined,
+  sourcesCookie: string | null | undefined,
+): string[] | undefined {
+  if (sourcesParam) {
+    return sourcesParam.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  if (!sourcesCookie) return undefined;
+  try {
+    const parsed = JSON.parse(sourcesCookie) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((s): s is string => typeof s === "string");
+    }
+  } catch {
+    // Invalid cookie, ignore
+  }
+  return undefined;
+}
+
+/** `undefined` = do not filter. `[]` = disable every named source. */
+export function filterByEnabledSources<T extends { name: string }>(
+  items: T[],
+  enabledSources?: string[],
+): T[] {
+  if (enabledSources == null) return items;
+  return items.filter((item) => enabledSources.includes(item.name));
+}
+
+export function applyToggleSource(current: ApiSourceSelection, source: string): ApiSourceSelection {
+  const isEnabled = current.enabled.includes(source);
+  const enabled = isEnabled
+    ? current.enabled.filter((s) => s !== source)
+    : [...current.enabled, source];
+  return {
+    enabled,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function applyToggleCategory(
+  current: ApiSourceSelection,
+  category: string,
+  enable: boolean,
+): ApiSourceSelection {
+  const categoryData = API_SOURCE_CATEGORIES.find((c) => c.name === category);
+  if (!categoryData) return current;
+
+  let enabled = [...current.enabled];
+  if (enable) {
+    for (const source of categoryData.sources) {
+      if (!enabled.includes(source)) enabled.push(source);
+    }
+  } else {
+    enabled = enabled.filter((s) => !categoryData.sources.includes(s));
+  }
+
+  return {
+    enabled,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function loadApiSourceSelection(): ApiSourceSelection {
+  if (typeof window === "undefined") return getDefaultSelection();
+
+  try {
+    return parseApiSourceSelection(window.localStorage.getItem(STORAGE_KEY));
   } catch {
     return getDefaultSelection();
   }
@@ -119,45 +193,13 @@ export function saveApiSourceSelection(selection: ApiSourceSelection): void {
 }
 
 export function toggleApiSource(source: string): ApiSourceSelection {
-  const current = loadApiSourceSelection();
-  const isEnabled = current.enabled.includes(source);
-  
-  const enabled = isEnabled
-    ? current.enabled.filter((s) => s !== source)
-    : [...current.enabled, source];
-  
-  const updated: ApiSourceSelection = {
-    enabled,
-    updatedAt: new Date().toISOString(),
-  };
-  
+  const updated = applyToggleSource(loadApiSourceSelection(), source);
   saveApiSourceSelection(updated);
   return updated;
 }
 
 export function toggleCategory(category: string, enable: boolean): ApiSourceSelection {
-  const current = loadApiSourceSelection();
-  const categoryData = API_SOURCE_CATEGORIES.find((c) => c.name === category);
-  
-  if (!categoryData) return current;
-  
-  let enabled = [...current.enabled];
-  
-  if (enable) {
-    for (const source of categoryData.sources) {
-      if (!enabled.includes(source)) {
-        enabled.push(source);
-      }
-    }
-  } else {
-    enabled = enabled.filter((s) => !categoryData.sources.includes(s));
-  }
-  
-  const updated: ApiSourceSelection = {
-    enabled,
-    updatedAt: new Date().toISOString(),
-  };
-  
+  const updated = applyToggleCategory(loadApiSourceSelection(), category, enable);
   saveApiSourceSelection(updated);
   return updated;
 }
