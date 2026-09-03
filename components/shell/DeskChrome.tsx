@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-export type DeskId = "trends" | "footprint" | "research" | "watchlist" | "insights";
+export type DeskId = "trends" | "footprint" | "research" | "watchlist" | "insights" | "ai-agents";
 
 const DESKS: { id: DeskId; href: string; label: string; blurb: string }[] = [
   { id: "trends", href: "/", label: "Trends", blurb: "What's printing now" },
@@ -10,6 +10,7 @@ const DESKS: { id: DeskId; href: string; label: string; blurb: string }[] = [
   { id: "footprint", href: "/footprint", label: "Footprint", blurb: "Look up a phrase" },
   { id: "insights", href: "/insights", label: "Insights", blurb: "Trace a name to its root" },
   { id: "research", href: "/research", label: "Research", blurb: "Look up a topic" },
+  { id: "ai-agents", href: "/ai-agents", label: "AI Agents", blurb: "Track agent trends" },
 ];
 
 export function goHome() {
