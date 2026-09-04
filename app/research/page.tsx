@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import ResearchDesk from "@/components/research/ResearchDesk";
+import AIAgentsDesk from "@/components/ai-agents/AIAgentsDesk";
 
 export const metadata: Metadata = {
-  title: "HawkxAI · Research",
-  description: "Deep topic research across Wikipedia, PubMed, arXiv, USPTO, web, HN, Reddit, and X.",
+  title: "Attention Alerts | HawkxAI Pro",
+  description:
+    "Trajectory alerts when an agent's public attention rate-of-change or concentration shifts.",
 };
 
 export default function ResearchPage() {
-  return <ResearchDesk />;
+  return <AIAgentsDesk initialMode="alerts" />;
 }

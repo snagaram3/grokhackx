@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { FootprintDesk } from "@/components/HawkxAIApp";
+import AIAgentsDesk from "@/components/ai-agents/AIAgentsDesk";
 
 export const metadata: Metadata = {
-  title: "HawkxAI · Footprint",
-  description: "Look up a campaign or phrase. See its footprint on the internet.",
+  title: "Cost Calculator | HawkxAI Pro",
+  description:
+    "Editable API cost assumptions for AI agents — visible rates, splits, and overrides.",
 };
 
-export default function FootprintPage() {
-  return <FootprintDesk />;
+export default function CalculatorPage() {
+  return <AIAgentsDesk initialMode="calculator" />;
 }

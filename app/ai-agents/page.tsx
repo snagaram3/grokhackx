@@ -1,10 +1,11 @@
 import AIAgentsDesk from "@/components/ai-agents/AIAgentsDesk";
 
 export const metadata = {
-  title: "AI Agents | HawkxAI",
-  description: "Track trends, capabilities, and adoption metrics across leading AI agents",
+  title: "Agent Intelligence | HawkxAI",
+  description:
+    "What's shifting this week in AI agents — independent attention from public discourse, not vendor benchmarks.",
 };
 
 export default function AIAgentsPage() {
-  return <AIAgentsDesk />;
+  return <AIAgentsDesk initialMode="trends" />;
 }

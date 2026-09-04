@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import WatchlistDesk from "@/components/watchlist/WatchlistDesk";
+import AIAgentsDesk from "@/components/ai-agents/AIAgentsDesk";
 
 export const metadata: Metadata = {
-  title: "HawkxAI · Watch",
-  description: "Companies and campaigns you track, scored against public tape.",
+  title: "Compare Agents | HawkxAI Pro",
+  description:
+    "Side-by-side attention and capability comparison for AI agents — rate of change first, sources linked.",
 };
 
-export default function WatchlistPage() {
-  return <WatchlistDesk />;
+export default function ComparePage() {
+  return <AIAgentsDesk initialMode="compare" />;
 }

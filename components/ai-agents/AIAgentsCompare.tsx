@@ -92,7 +92,7 @@ export default function AIAgentsCompare({ selectedIds, onClose }: AIAgentsCompar
     <div className="empty-stage">
       <div className="empty-stage__head">
         <div>
-          <p className="empty-stage__eyebrow">Comparison</p>
+          <p className="empty-stage__eyebrow">Paid · Compare</p>
           <h2 className="text-lg font-medium">{comparison.agents.map((a) => a.name).join(" vs ")}</h2>
         </div>
         <button type="button" onClick={onClose} className="btn-ghost">
@@ -123,7 +123,7 @@ export default function AIAgentsCompare({ selectedIds, onClose }: AIAgentsCompar
               </p>
             </div>
             <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
-              <p className="signal-label">Fastest Growing</p>
+              <p className="signal-label">Fastest RoC</p>
               <p className="mt-2 text-lg font-medium text-[var(--ink)]">
                 {getAgentName(comparison.summary.fastest)}
               </p>
@@ -229,41 +229,46 @@ export default function AIAgentsCompare({ selectedIds, onClose }: AIAgentsCompar
           </div>
         </section>
 
-        {/* Metrics */}
+        {/* Attention metrics */}
         <section>
-          <h3 className="signal-label mb-3">Metrics Comparison</h3>
+          <h3 className="signal-label mb-3">Attention comparison</h3>
           <div className="overflow-x-auto">
             <table className="watch-table">
               <thead>
                 <tr>
                   <th className="text-left">Agent</th>
                   <th className="text-right">Mentions</th>
+                  <th className="text-right">RoC</th>
+                  <th className="text-right">Attention</th>
                   <th className="text-left">Velocity</th>
                   <th className="text-left">Sentiment</th>
-                  <th className="text-right">Weekly Change</th>
-                  <th className="text-right">Trend Score</th>
                 </tr>
               </thead>
               <tbody>
-                {comparison.metrics.map((m) => (
+                {comparison.metrics.map((m) => {
+                  const roc = m.rateOfChange ?? m.weeklyChange;
+                  const attention = m.attention ?? m.trendScore;
+                  return (
                   <tr key={m.agentId}>
                     <td className="font-medium">{m.name}</td>
-                    <td className="text-right tabular">{m.mentions.toLocaleString()}</td>
+                    <td className="text-right tabular-nums">{m.mentions.toLocaleString()}</td>
+                    <td className={`text-right font-medium tabular-nums ${roc >= 0 ? "text-[var(--up)]" : "text-[var(--down)]"}`}>
+                      {roc >= 0 ? "+" : ""}
+                      {roc.toFixed(1)}%
+                    </td>
+                    <td className="text-right font-medium tabular-nums">{attention}</td>
                     <td className="uppercase">
                       <span className="signal-label">{m.velocity}</span>
                     </td>
                     <td className="uppercase">
                       <span className="signal-label">{m.sentiment}</span>
                     </td>
-                    <td className={`text-right font-medium tabular ${m.weeklyChange >= 0 ? "text-[var(--up)]" : "text-[var(--down)]"}`}>
-                      {m.weeklyChange >= 0 ? "+" : ""}
-                      {m.weeklyChange.toFixed(1)}%
-                    </td>
-                    <td className="text-right font-medium tabular">{m.trendScore}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
+            <p className="mt-2 text-xs text-[var(--mute)]">Attention is public discourse signal — not adoption.</p>
           </div>
         </section>
       </div>

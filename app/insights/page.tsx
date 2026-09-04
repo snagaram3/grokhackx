@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import InsightsDesk from "@/components/insights/InsightsDesk";
+import AIAgentsDesk from "@/components/ai-agents/AIAgentsDesk";
 
 export const metadata: Metadata = {
-  title: "HawkxAI · Insights",
-  description: "Trace a particular name to its origin page, family, and oldest dated receipt.",
+  title: "Weekly Attention Read | HawkxAI Pro",
+  description:
+    "This week's AI agent attention briefing — generated from the same sourced dashboard data, no unsourced claims.",
 };
 
 export default function InsightsPage() {
-  return <InsightsDesk />;
+  return <AIAgentsDesk initialMode="weekly" />;
 }
