@@ -5,11 +5,11 @@ import type { ReactNode } from "react";
 export type DeskId = "trends" | "footprint" | "research" | "watchlist" | "insights" | "ai-agents";
 
 const DESKS: { id: DeskId; href: string; label: string; blurb: string }[] = [
-  { id: "trends", href: "/", label: "AI Agents", blurb: "LLM & Agent Intelligence" },
-  { id: "watchlist", href: "/watchlist", label: "Compare", blurb: "Side-by-side analysis" },
-  { id: "footprint", href: "/footprint", label: "Calculator", blurb: "Cost estimation" },
-  { id: "insights", href: "/insights", label: "Insights", blurb: "Deep dive & trends" },
-  { id: "research", href: "/research", label: "Research", blurb: "Market analysis" },
+  { id: "trends", href: "/", label: "AI Agents", blurb: "This-week attention" },
+  { id: "watchlist", href: "/watchlist", label: "Compare", blurb: "Paid · side-by-side" },
+  { id: "footprint", href: "/footprint", label: "Calculator", blurb: "Paid · cost model" },
+  { id: "insights", href: "/insights", label: "Weekly", blurb: "Paid · sourced read" },
+  { id: "research", href: "/research", label: "Alerts", blurb: "Paid · trajectory" },
 ];
 
 export function goHome() {

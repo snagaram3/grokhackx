@@ -30,6 +30,8 @@ export interface MetricsComparison {
   velocity: string;
   sentiment: string;
   weeklyChange: number;
+  rateOfChange: number;
+  attention: number;
   trendScore: number;
 }
 
@@ -126,26 +128,28 @@ export function compareAgents(agents: AIAgent[]): ComparisonResult {
     return a.totalCost1M - b.totalCost1M;
   });
 
-  // Build metrics comparisons
+  // Build metrics comparisons — attention / RoC, never adoption
   const metrics: MetricsComparison[] = agents.map((a) => ({
     agentId: a.id,
     name: a.name,
     mentions: a.metrics.mentions,
     velocity: a.metrics.velocity,
     sentiment: a.metrics.sentiment,
-    weeklyChange: a.metrics.weekly_change,
-    trendScore: a.metrics.trend_score,
+    weeklyChange: a.metrics.rateOfChange,
+    rateOfChange: a.metrics.rateOfChange,
+    attention: a.metrics.attention,
+    trendScore: a.metrics.attention,
   }));
 
-  // Sort by trend score descending
-  metrics.sort((a, b) => b.trendScore - a.trendScore);
+  // Sort by rate of change first (speed wedge)
+  metrics.sort((a, b) => b.rateOfChange - a.rateOfChange);
 
   // Calculate summary
-  const overallLeader = metrics[0]?.agentId || "";
+  const overallLeader = [...metrics].sort((a, b) => b.attention - a.attention)[0]?.agentId || "";
   
   const bestValue = pricing.find((p) => p.totalCost1M !== null)?.agentId || pricing[0]?.agentId || "";
   
-  const fastest = metrics.sort((a, b) => b.weeklyChange - a.weeklyChange)[0]?.agentId || "";
+  const fastest = [...metrics].sort((a, b) => b.rateOfChange - a.rateOfChange)[0]?.agentId || "";
   
   // Calculate average capability score per agent
   const agentCapScores = agents.map((a) => ({
@@ -181,10 +185,10 @@ export function compareAgents(agents: AIAgent[]): ComparisonResult {
     insights.push(`Price range: ${ratio}x difference between cheapest and most expensive`);
   }
 
-  // Velocity insights
+  // Velocity insights — attention, not adoption
   const rising = metrics.filter((m) => m.velocity === "rising");
   if (rising.length > 0) {
-    insights.push(`${rising.length} agent${rising.length > 1 ? "s" : ""} showing rising adoption`);
+    insights.push(`${rising.length} agent${rising.length > 1 ? "s" : ""} showing rising attention (RoC)`);
   }
 
   // Sentiment insights
@@ -252,13 +256,13 @@ export function generateComparisonMarkdown(comparison: ComparisonResult): string
   }
   md += "\n*Assuming 50/50 input/output split\n\n";
 
-  md += "## Metrics Comparison\n\n";
-  md += "| Agent | Mentions | Velocity | Sentiment | Weekly Change | Trend Score |\n";
-  md += "|-------|----------|----------|-----------|---------------|-------------|\n";
+  md += "## Attention Metrics Comparison\n\n";
+  md += "| Agent | Mentions | RoC | Attention | Velocity | Sentiment |\n";
+  md += "|-------|----------|-----|-----------|----------|-----------|\n";
   
   for (const m of comparison.metrics) {
-    const change = m.weeklyChange >= 0 ? `+${m.weeklyChange.toFixed(1)}%` : `${m.weeklyChange.toFixed(1)}%`;
-    md += `| ${m.name} | ${m.mentions.toLocaleString()} | ${m.velocity} | ${m.sentiment} | ${change} | ${m.trendScore} |\n`;
+    const change = m.rateOfChange >= 0 ? `+${m.rateOfChange.toFixed(1)}%` : `${m.rateOfChange.toFixed(1)}%`;
+    md += `| ${m.name} | ${m.mentions.toLocaleString()} | ${change} | ${m.attention} | ${m.velocity} | ${m.sentiment} |\n`;
   }
 
   return md;
