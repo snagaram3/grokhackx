@@ -47,6 +47,21 @@ export interface ComparisonResult {
   insights: string[];
 }
 
+export function missingAgentIds(requested: string[], foundIds: string[]): string[] {
+  return requested.filter((id) => !foundIds.includes(id));
+}
+
+export function resolveCompareAgents<T extends { id: string }>(
+  ids: string[],
+  getById: (id: string) => T | undefined,
+): { ok: true; agents: T[] } | { ok: false; missing: string[] } {
+  const agents = ids.map((id) => getById(id)).filter((a): a is T => a !== undefined);
+  if (agents.length !== ids.length) {
+    return { ok: false, missing: missingAgentIds(ids, agents.map((a) => a.id)) };
+  }
+  return { ok: true, agents };
+}
+
 export function compareAgents(agents: AIAgent[]): ComparisonResult {
   if (agents.length === 0) {
     return {
