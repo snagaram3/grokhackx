@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { collectorSummary, healthFrom, validatorAgent } from "./agents";
+import { collectorSummary, healthFrom, mergedPublicPosts, validatorAgent } from "./agents";
 import type { Post, Topic } from "./types";
 
 function emptySlice() {
@@ -76,5 +76,72 @@ test("healthFrom marks offline sources without inventing a WHY", () => {
       { source: "hn", ok: true, count: 2, posts: [] },
     ]),
     "collector: x fail(0) hn ok(2)",
+  );
+});
+
+test("healthFrom treats Google Trends receipts as a public fallback, not as X", () => {
+  const trends = [
+    post("Camry search heat", "https://trends.google.com/trending/explore?q=Camry"),
+  ];
+  const xOffline = {
+    source: "x" as const,
+    ok: false,
+    count: 0,
+    posts: [] as Post[],
+    fallback: "google trends",
+    fallbackPosts: trends,
+  };
+  const withPublic = healthFrom([
+    xOffline,
+    { source: "reddit", ok: true, count: 1, posts: [] },
+    { source: "hn", ok: true, count: 1, posts: [] },
+    { source: "public", ok: true, count: 2, posts: [] },
+  ]);
+  assert.equal(withPublic.sources.x, false);
+  assert.equal(withPublic.sources.public, true);
+  assert.deepEqual(withPublic.degraded, ["x offline · google trends fallback"]);
+  assert.equal(
+    collectorSummary([xOffline]),
+    "collector: x fail(0) google trends(1)",
+  );
+
+  // public is last in /api/trends, so a failed public source overwrites the fallback flag.
+  const publicAlsoDown = healthFrom([
+    xOffline,
+    { source: "public", ok: false, count: 0, posts: [] },
+  ]);
+  assert.equal(publicAlsoDown.sources.x, false);
+  assert.equal(publicAlsoDown.sources.public, false);
+  assert.deepEqual(publicAlsoDown.degraded, [
+    "x offline · google trends fallback",
+    "public offline",
+  ]);
+
+  const emptyFallback = healthFrom([
+    { source: "x", ok: false, count: 0, posts: [], fallback: "google trends", fallbackPosts: [] },
+  ]);
+  assert.equal(emptyFallback.sources.public, false);
+  assert.deepEqual(emptyFallback.degraded, ["x offline"]);
+});
+
+test("mergedPublicPosts appends X fallback Trends onto public receipts", () => {
+  const wiki = post("Toyota Camry", "https://en.wikipedia.org/wiki/Toyota_Camry");
+  const trend = post("Camry", "https://trends.google.com/trending/explore?q=Camry");
+  const publicR = { source: "public" as const, ok: true, count: 1, posts: [wiki] };
+  const withFallback = {
+    source: "x" as const,
+    ok: false,
+    count: 0,
+    posts: [] as Post[],
+    fallback: "google trends",
+    fallbackPosts: [trend],
+  };
+  assert.deepEqual(
+    mergedPublicPosts(withFallback, publicR).map((p) => p.url),
+    [wiki.url, trend.url],
+  );
+  assert.deepEqual(
+    mergedPublicPosts({ source: "x", ok: false, count: 0, posts: [] }, publicR),
+    [wiki],
   );
 });

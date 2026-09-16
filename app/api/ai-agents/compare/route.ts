@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAIAgentsStore } from "@/lib/ai-agents-store";
-import { compareAgents, generateComparisonMarkdown } from "@/lib/ai-agents-compare";
+import { compareAgents, generateComparisonMarkdown, resolveCompareAgents } from "@/lib/ai-agents-compare";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
@@ -36,16 +36,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const store = getAIAgentsStore();
-    const agents = ids.map((id) => store.getById(id)).filter((a): a is NonNullable<typeof a> => a !== undefined);
-    
-    if (agents.length !== ids.length) {
-      const foundIds = agents.map((a) => a.id);
-      const notFound = ids.filter((id) => !foundIds.includes(id));
+    const resolved = resolveCompareAgents(ids, (id) => store.getById(id));
+    if (!resolved.ok) {
       return NextResponse.json(
-        { error: `Agents not found: ${notFound.join(", ")}` },
+        { error: `Agents not found: ${resolved.missing.join(", ")}` },
         { status: 404 }
       );
     }
+    const agents = resolved.agents;
 
     const comparison = compareAgents(agents);
 

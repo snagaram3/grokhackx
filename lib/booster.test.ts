@@ -202,3 +202,15 @@ test("improvisationsFor ranks ingest gaps as P0 and never invents a ticker overl
   assert.ok(finance);
   assert.match(finance!.next, /never invent symbols/i);
 });
+
+test("improvisationsFor treats Google Trends fallback as a thin stand-in, not a missing X ingest", () => {
+  const payload: TrendsPayload = {
+    topics: [topic({ id: "camry", label: "Camry" })],
+    updatedAt: "2026-08-26T12:00:00.000Z",
+    sources: { x: false, reddit: true, hn: true, public: true },
+    degraded: ["x offline · google trends fallback"],
+  };
+  const items = improvisationsFor(payload, []);
+  assert.equal(items.some((i) => i.title === "Stabilize X ingest"), false);
+  assert.ok(items.some((i) => i.title === "Google Trends RSS is a thin X stand-in" && i.priority === "P1"));
+});

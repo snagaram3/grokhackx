@@ -1,16 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { estimateAgentCosts, parseTokenCount } from "@/lib/ai-agents-cost";
 import type { AIAgent } from "@/lib/ai-agents-types";
-
-interface CostEstimate {
-  agentId: string;
-  name: string;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-  tier: string;
-}
 
 interface CostCalculatorProps {
   agents: AIAgent[];
@@ -20,24 +12,10 @@ export default function CostCalculator({ agents }: CostCalculatorProps) {
   const [inputTokens, setInputTokens] = useState("500000");
   const [outputTokens, setOutputTokens] = useState("500000");
 
-  const inputCount = parseInt(inputTokens, 10) || 0;
-  const outputCount = parseInt(outputTokens, 10) || 0;
+  const inputCount = parseTokenCount(inputTokens);
+  const outputCount = parseTokenCount(outputTokens);
 
-  const estimates: CostEstimate[] = agents
-    .filter((a) => a.pricing.inputCost !== undefined && a.pricing.outputCost !== undefined)
-    .map((a) => {
-      const inputCost = ((a.pricing.inputCost || 0) * inputCount) / 1_000_000;
-      const outputCost = ((a.pricing.outputCost || 0) * outputCount) / 1_000_000;
-      return {
-        agentId: a.id,
-        name: a.name,
-        inputCost,
-        outputCost,
-        totalCost: inputCost + outputCost,
-        tier: a.pricing.tier,
-      };
-    })
-    .sort((a, b) => a.totalCost - b.totalCost);
+  const estimates = estimateAgentCosts(agents, inputCount, outputCount);
 
   const cheapest = estimates[0];
   const mostExpensive = estimates[estimates.length - 1];
