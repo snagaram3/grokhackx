@@ -185,3 +185,95 @@ test("classifyTopic routes QR campaigns, NWS weather, and tickers without a shar
     "markets",
   );
 });
+
+test("classifyTopic falls back to HN tech, public news, then culture", () => {
+  assert.equal(
+    classifyTopic(
+      topic({
+        id: "zzzz-hn",
+        label: "zzzz-hn",
+        platforms: {
+          x: { score: 10, posts: [] },
+          reddit: emptySlice(),
+          hn: { score: 40, posts: [post("zzzz-hn thread")] },
+          public: emptySlice(),
+        },
+      }),
+    ),
+    "tech",
+  );
+  assert.equal(
+    classifyTopic(
+      topic({
+        id: "zzzz-pub",
+        label: "zzzz-pub",
+        platforms: {
+          x: emptySlice(),
+          reddit: emptySlice(),
+          hn: { score: 15, posts: [] },
+          public: { score: 8, posts: [post("zzzz-pub note")] },
+        },
+      }),
+    ),
+    "news",
+  );
+  assert.equal(classifyTopic(topic({ id: "zzzz", label: "zzzz" })), "culture");
+});
+
+test("buildSentiment 1.4 lean threshold and mixed when titles have no tone words", () => {
+  const pos = buildSentiment(
+    topic({
+      id: "camry",
+      label: "Camry",
+      platforms: {
+        x: emptySlice(),
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: {
+          score: 20,
+          posts: [post("Camry great upgrade"), post("Camry best launch"), post("Camry demand waitlist")],
+        },
+      },
+    }),
+  );
+  assert.equal(pos.thin, false);
+  assert.equal(pos.lean, "pos");
+  assert.ok(pos.overall.pos >= pos.overall.neg * 1.4);
+
+  const mixed = buildSentiment(
+    topic({
+      id: "zzzz",
+      label: "zzzz",
+      platforms: {
+        x: emptySlice(),
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: {
+          score: 20,
+          posts: [post("zzzz note one"), post("zzzz note two")],
+        },
+      },
+    }),
+  );
+  assert.equal(mixed.thin, false);
+  assert.equal(mixed.lean, "mixed");
+  assert.equal(mixed.overall.pos, 0);
+  assert.equal(mixed.overall.neg, 0);
+
+  const close = buildSentiment(
+    topic({
+      id: "camry-close",
+      label: "Camry",
+      platforms: {
+        x: emptySlice(),
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: {
+          score: 20,
+          posts: [post("Camry great"), post("Camry fail")],
+        },
+      },
+    }),
+  );
+  assert.equal(close.lean, "mixed");
+});

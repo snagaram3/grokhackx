@@ -45,6 +45,15 @@ test("inferQueryIntent classifies ticker, hashtag, campaign, product, and recall
   const generic = inferQueryIntent("blorptastic");
   assert.equal(generic.kind, "generic");
   assert.equal(generic.category, "culture");
+
+  const place = inferQueryIntent("London");
+  assert.equal(place.kind, "place");
+  assert.equal(place.category, "news");
+
+  const truck = inferQueryIntent("F-150");
+  assert.equal(truck.kind, "product");
+  assert.equal(truck.category, "markets");
+  assert.ok(truck.aliases.some((a) => /ford/i.test(a)));
 });
 
 test("searchQuery quotes multi-word aliases and floorLine refuses invented reach", () => {
@@ -71,4 +80,21 @@ test("searchQuery quotes multi-word aliases and floorLine refuses invented reach
     ),
     /thin/,
   );
+  const exactNeg = {
+    topicId: "camry",
+    lean: "neg" as const,
+    overall: { pos: 1, neg: 4, risk: 1, n: 5 },
+    byPlatform: {},
+    drivers: [],
+    quotes: [],
+    hits: [],
+    thin: false,
+  };
+  assert.match(floorLine(intent, exactNeg, 5, "exact"), /negative/);
+  const mixed = {
+    ...exactNeg,
+    lean: "mixed" as const,
+    overall: { pos: 2, neg: 2, risk: 0, n: 4 },
+  };
+  assert.match(floorLine(intent, mixed, 4, "exact"), /2 pos \/ 2 neg in 4 titles/);
 });
