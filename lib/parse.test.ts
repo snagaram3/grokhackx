@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseCity, trendsCacheKey } from "./geo";
-import { payloadFromQrImageUrl } from "./qr";
+import { isQrImageUrl, payloadFromQrImageUrl } from "./qr";
 import { vehicleQuery } from "./public-apis";
 import { formatResearchBrief, researchBriefFilename } from "./research-brief";
 import { clusteredListSchema, xTrendSchema, whyItemSchema } from "./schemas";
@@ -38,6 +38,11 @@ test("QR image URLs decode data/text/chl and ignore ordinary pages", () => {
   );
   assert.equal(payloadFromQrImageUrl("https://en.wikipedia.org/wiki/Camry"), null);
   assert.equal(payloadFromQrImageUrl("not a url"), null);
+  assert.equal(isQrImageUrl("https://cdn.example/poster.png"), true);
+  assert.equal(isQrImageUrl("https://cdn.example/poster.JPG?cache=1"), true);
+  assert.equal(isQrImageUrl("https://chart.googleapis.com/chart?cht=qr&chl=https://camry.example/fit"), true);
+  assert.equal(isQrImageUrl("https://en.wikipedia.org/wiki/Camry"), false);
+  assert.equal(isQrImageUrl("not a url"), false);
 });
 
 test("zod schemas clamp X volume and reject empty cluster lists", () => {

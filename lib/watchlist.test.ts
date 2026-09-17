@@ -6,6 +6,7 @@ import {
   nextWindowFromSeries,
   normalizeAliases,
   occupancyExamples,
+  overlapRows,
   receiptHitsAlias,
   scorePoi,
   type PoiReceipt,
@@ -45,6 +46,21 @@ test("receiptHitsAlias uses word boundaries", () => {
   assert.equal(receiptHitsAlias({ title: "New Camry hybrid", url: "https://x.test/a" }, ["Camry"]), true);
   assert.equal(receiptHitsAlias({ title: "camera sensor", url: "https://x.test/a" }, ["Camry"]), false);
   assert.equal(receiptHitsAlias({ title: "heat", url: "https://x.test/#HeatWaveFit" }, ["#HeatWaveFit"]), true);
+});
+
+test("overlapRows keeps alias hits, stamps official hosts, and drops empty URLs", () => {
+  const camry = entity("Camry");
+  const rows = overlapRows(camry, [
+    receipt({ url: "https://en.wikipedia.org/wiki/Toyota_Camry", title: "Toyota Camry" }),
+    receipt({ url: "", title: "Camry with no href" }),
+    receipt({ url: "https://news.test/camera", title: "camera sensor" }),
+    receipt({ url: "https://www.reuters.com/world/camry-surge", title: "Camry surge" }),
+  ]);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0]?.official, true);
+  assert.equal(rows[0]?.host, "en.wikipedia.org");
+  assert.equal(rows[1]?.official, false);
+  assert.equal(rows[1]?.host, "reuters.com");
 });
 
 test("isOfficial marks wiki, nhtsa, and brand-like hosts", () => {

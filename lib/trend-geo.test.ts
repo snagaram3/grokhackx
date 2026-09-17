@@ -253,3 +253,50 @@ test("topoLandToMultiPolygon reads GeometryCollection land (world-atlas)", () =>
   assert.equal(land?.type, "MultiPolygon");
   assert.ok((land?.coordinates[0]?.[0]?.length ?? 0) >= 4);
 });
+
+test("topoLandToMultiPolygon stitches a reversed second arc and drops a 3-point ring", () => {
+  const reversed = topoLandToMultiPolygon({
+    type: "Topology",
+    arcs: [
+      [
+        [0, 0],
+        [2, 0],
+        [0, 2],
+      ],
+      [
+        [0, 0],
+        [0, 2],
+        [2, 0],
+      ],
+    ],
+    objects: { land: { type: "MultiPolygon", arcs: [[[0, ~1]]] } },
+  });
+  assert.equal(reversed?.type, "MultiPolygon");
+  const ring = reversed?.coordinates[0]?.[0] ?? [];
+  assert.ok(ring.length > 3);
+  assert.deepEqual(ring[0], [0, 0]);
+  assert.deepEqual(ring[ring.length - 1], [0, 0]);
+
+  const triangle = topoLandToMultiPolygon({
+    type: "Topology",
+    arcs: [
+      [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+      ],
+    ],
+    objects: { land: { type: "MultiPolygon", arcs: [[[0]]] } },
+  });
+  assert.equal(triangle, null);
+});
+
+test("topoLandToMultiPolygon returns null on junk instead of inventing land", () => {
+  assert.equal(topoLandToMultiPolygon(null), null);
+  assert.equal(topoLandToMultiPolygon("land"), null);
+  assert.equal(topoLandToMultiPolygon({ type: "Topology" }), null);
+  assert.equal(
+    topoLandToMultiPolygon({ type: "Topology", arcs: [[[0, 0]]], objects: {} }),
+    null,
+  );
+});

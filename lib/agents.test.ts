@@ -78,3 +78,22 @@ test("healthFrom marks offline sources without inventing a WHY", () => {
     "collector: x fail(0) hn ok(2)",
   );
 });
+
+test("collectorSummary names a Google Trends fallback count and hides an empty fallback", () => {
+  const trends = [
+    post("Camry", "https://trends.google.com/trending/explore?q=Camry"),
+    post("WWDC", "https://trends.google.com/trending/explore?q=WWDC"),
+  ];
+  assert.equal(
+    collectorSummary([
+      { source: "x", ok: false, count: 0, posts: [], fallback: "google trends", fallbackPosts: trends },
+    ]),
+    "collector: x fail(0) google trends(2)",
+  );
+  assert.equal(
+    collectorSummary([
+      { source: "x", ok: false, count: 0, posts: [], fallback: "google trends", fallbackPosts: [] },
+    ]),
+    "collector: x fail(0)",
+  );
+});
