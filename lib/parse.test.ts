@@ -45,6 +45,20 @@ test("zod schemas clamp X volume and reject empty cluster lists", () => {
   assert.equal(xTrendSchema.parse({ topic: "Camry", volume: -4 }).volume, 0);
   assert.throws(() => clusteredListSchema.parse({ topics: [] }));
   assert.equal(whyItemSchema.parse({ id: "t1", why: "x".repeat(400) }).why.length, 280);
+  const noPublic = clusteredListSchema.parse({
+    topics: [
+      {
+        id: "camry",
+        label: "Camry",
+        platforms: {
+          x: { score: 0, posts: [] },
+          reddit: { score: 0, posts: [] },
+          hn: { score: 0, posts: [] },
+        },
+      },
+    ],
+  });
+  assert.deepEqual(noPublic.topics[0].platforms.public, { score: 0, posts: [] });
 });
 
 test("research brief lists dropped receipts and marks the default sense", () => {

@@ -50,7 +50,9 @@ test("receiptHitsAlias uses word boundaries", () => {
 test("isOfficial marks wiki, nhtsa, and brand-like hosts", () => {
   assert.equal(isOfficial("https://en.wikipedia.org/wiki/Camry", "Camry"), true);
   assert.equal(isOfficial("https://www.nhtsa.gov/recalls", "Camry"), true);
+  assert.equal(isOfficial("https://www.camry.com/news", "Camry"), true);
   assert.equal(isOfficial("https://www.reuters.com/camry", "Camry"), false);
+  assert.equal(isOfficial("https://news.example/camry", "Camry"), false);
 });
 
 test("scorePoi is thin under 4 receipts and abstains", () => {
@@ -130,7 +132,12 @@ test("unrelated names do not steal Camry receipts", () => {
   assert.equal(scored.receiptCount, 0);
 });
 
-function fakeInsight(label: string, occupancy: number, organic: number): PoiInsight {
+function fakeInsight(
+  label: string,
+  occupancy: number,
+  organic: number,
+  extra: Partial<PoiInsight> = {},
+): PoiInsight {
   return {
     entity: entity(label),
     receiptCount: 10,
@@ -148,6 +155,7 @@ function fakeInsight(label: string, occupancy: number, organic: number): PoiInsi
     baselineRatio: 0.1,
     rankScore: occupancy,
     window: [4, 6],
+    ...extra,
   };
 }
 
@@ -158,6 +166,56 @@ test("sortInsights rank keeps higher rankScore first", () => {
     "desc",
   );
   assert.equal(rows[0].entity.label, "High");
+});
+
+test("sortInsights outlook, delta, receipts, thin occupancy, and label ties", () => {
+  const rising = fakeInsight("Zeta", 0.2, 0.8, {
+    outlook: "rising",
+    thin: false,
+    delta: 1,
+    receiptCount: 4,
+    rankScore: 1,
+  });
+  const peaking = fakeInsight("Peak", 0.2, 0.8, {
+    outlook: "peaking",
+    thin: false,
+    delta: 5,
+    receiptCount: 9,
+    rankScore: 1,
+  });
+  const fading = fakeInsight("Fade", 0.2, 0.8, {
+    outlook: "fading",
+    thin: false,
+    delta: 2,
+    receiptCount: 2,
+    rankScore: 2,
+  });
+  const thin = fakeInsight("Thin", 0.9, 0.1, {
+    outlook: "thin",
+    thin: true,
+    occupancy: 0.9,
+    delta: 0,
+    receiptCount: 1,
+    rankScore: 0,
+  });
+
+  assert.deepEqual(
+    sortInsights([fading, thin, rising, peaking], "outlook", "desc").map((row) => row.entity.label),
+    ["Zeta", "Peak", "Fade", "Thin"],
+  );
+  assert.equal(sortInsights([thin, rising], "occupancy", "desc").at(-1)?.entity.label, "Thin");
+  assert.equal(sortInsights([rising, peaking, fading], "delta", "desc")[0].entity.label, "Peak");
+  assert.equal(sortInsights([rising, peaking, fading], "receipts", "desc")[0].entity.label, "Peak");
+  assert.equal(sortInsights([rising, peaking], "receipts", "asc")[0].entity.label, "Zeta");
+  assert.deepEqual(
+    sortInsights(
+      [fakeInsight("Beta", 0.5, 0.5, { rankScore: 3 }), fakeInsight("Alpha", 0.5, 0.5, { rankScore: 3 })],
+      "rank",
+      "desc",
+    ).map((row) => row.entity.label),
+    ["Alpha", "Beta"],
+  );
+  assert.equal(deltaLabel(0), "0");
 });
 
 test("watchlist store add, join tape, remove", async () => {

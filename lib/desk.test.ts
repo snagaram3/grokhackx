@@ -77,6 +77,27 @@ test("buildCausation treats recall language as a risk driver, not a slogan", () 
   assert.ok(report.drivers.some((d) => d.id === "velocity" && d.label === "Cooling"));
 });
 
+test("buildCausation flags QR, tickers, sub-2h lag, and peaking velocity", () => {
+  const report = buildCausation(
+    topic(
+      [
+        post("hn", "Camry hybrid thread", "2026-08-26T12:00:00.000Z", 12),
+        post("public", "Camry in world news", "2026-08-26T13:00:00.000Z", 70),
+      ],
+      { velocity: "peaking", divergence: 0.7 },
+    ),
+    [
+      { kind: "qr", value: "https://camry.example/fit", mentions: 1, platforms: ["public"] },
+      { kind: "ticker", value: "$TM", mentions: 2, platforms: ["hn"] },
+    ],
+  );
+  assert.equal(report.lagHours, 1);
+  assert.ok(report.drivers.some((d) => d.id === "lag" && d.label === "Cross-source in <2h"));
+  assert.ok(report.drivers.some((d) => d.id === "qr"));
+  assert.ok(report.drivers.some((d) => d.id === "tickers"));
+  assert.ok(report.drivers.some((d) => d.id === "velocity" && d.label === "At peak"));
+});
+
 test("buildTimeseries ignores invalid dates and buckets dated receipts", () => {
   assert.deepEqual(buildTimeseries([topic([])]), []);
   const series = buildTimeseries([
