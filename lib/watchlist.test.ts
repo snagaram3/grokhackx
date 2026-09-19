@@ -259,6 +259,21 @@ test("postsInBucket filters dated receipts to the selected window", () => {
   assert.equal(early.length, 1);
   assert.equal(early[0].title, "early");
   assert.equal(postsInBucket(posts, series, null).length, 2);
+
+  const last = postsInBucket(posts, series, series[1].t);
+  assert.equal(last.length, 1);
+  assert.equal(last[0].title, "later");
+  assert.equal(postsInBucket(posts, series, "missing").length, 2);
+  assert.equal(postsInBucket(posts, [], series[0].t).length, 2);
+
+  const withJunk = [
+    ...posts,
+    { platform: "public" as const, title: "undated", url: "https://a.test/3", score: 10, createdAt: "not-a-date" },
+  ];
+  assert.deepEqual(
+    postsInBucket(withJunk, series, series[0].t).map((p) => p.title),
+    ["early"],
+  );
 });
 
 test("topicsInBucket keeps prints with receipts in the window", () => {
