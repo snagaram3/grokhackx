@@ -51,7 +51,7 @@ class ScoreAndDedupTests(unittest.TestCase):
             ],
             "collect_hn",
         )
-        with patch("tools.score.is_enabled", return_value=True):
+        with patch("tools.score.is_enabled", return_value=True), patch("tools.score._client", return_value=None):
             out = score_and_dedup("Camry", posts_json="{not-json")
         self.assertEqual(out["status"], "success")
         self.assertEqual(out["count"], 1)
@@ -59,7 +59,7 @@ class ScoreAndDedupTests(unittest.TestCase):
 
     def test_non_object_json_array_falls_back_to_buffer(self) -> None:
         add_posts([{"title": "Camry wiki", "url": "https://en.wikipedia.org/wiki/Camry"}], "collect_public_apis")
-        with patch("tools.score.is_enabled", return_value=True):
+        with patch("tools.score.is_enabled", return_value=True), patch("tools.score._client", return_value=None):
             out = score_and_dedup("Camry", posts_json='["not-a-post"]')
         self.assertEqual(out["status"], "success")
         self.assertEqual(out["count"], 1)
