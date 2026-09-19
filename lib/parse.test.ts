@@ -5,7 +5,7 @@ import { payloadFromQrImageUrl } from "./qr";
 import { vehicleQuery } from "./public-apis";
 import { formatResearchBrief, researchBriefFilename } from "./research-brief";
 import { clusteredListSchema, xTrendSchema, whyItemSchema } from "./schemas";
-import { databaseName, isTrendDatabase, readTrendDbConfig } from "./trend-db";
+import { allDatabaseNames, databaseName, isTrendDatabase, readTrendDbConfig } from "./trend-db";
 import { ucb } from "./rl";
 import type { ResearchPayload } from "./types";
 
@@ -85,18 +85,54 @@ test("research brief lists dropped receipts and marks the default sense", () => 
 test("trend db names stay category-scoped and config abstains without host/user", () => {
   assert.equal(isTrendDatabase("markets"), true);
   assert.equal(isTrendDatabase("tape"), false);
+  assert.equal(isTrendDatabase("all"), true);
   assert.equal(databaseName("news", "hawkxai"), "hawkxai_news");
+  const names = allDatabaseNames("hawkxai");
+  assert.equal(names.length, 10);
+  assert.ok(names.includes("hawkxai_all"));
+  assert.ok(names.includes("hawkxai_markets"));
+  assert.ok(names.includes("hawkxai_culture"));
   const prev = {
     host: process.env.TREND_DB_HOST,
     user: process.env.TREND_DB_USER,
+    port: process.env.TREND_DB_PORT,
+    ssl: process.env.TREND_DB_SSL,
+    password: process.env.TREND_DB_PASSWORD,
   };
   delete process.env.TREND_DB_HOST;
   delete process.env.TREND_DB_USER;
   assert.equal(readTrendDbConfig(), null);
+
+  process.env.TREND_DB_HOST = "sql.example";
+  process.env.TREND_DB_USER = "hawkxai";
+  process.env.TREND_DB_PASSWORD = "";
+  process.env.TREND_DB_PORT = "not-a-port";
+  process.env.TREND_DB_SSL = "1";
+  const sslOn = readTrendDbConfig();
+  assert.equal(sslOn?.host, "sql.example");
+  assert.equal(sslOn?.port, 5432);
+  assert.equal(sslOn?.ssl, true);
+  assert.equal(sslOn?.password, "");
+
+  process.env.TREND_DB_PORT = "6543";
+  process.env.TREND_DB_SSL = "true";
+  const custom = readTrendDbConfig();
+  assert.equal(custom?.port, 6543);
+  assert.equal(custom?.ssl, true);
+
+  process.env.TREND_DB_SSL = "0";
+  assert.equal(readTrendDbConfig()?.ssl, false);
+
   if (prev.host === undefined) delete process.env.TREND_DB_HOST;
   else process.env.TREND_DB_HOST = prev.host;
   if (prev.user === undefined) delete process.env.TREND_DB_USER;
   else process.env.TREND_DB_USER = prev.user;
+  if (prev.port === undefined) delete process.env.TREND_DB_PORT;
+  else process.env.TREND_DB_PORT = prev.port;
+  if (prev.ssl === undefined) delete process.env.TREND_DB_SSL;
+  else process.env.TREND_DB_SSL = prev.ssl;
+  if (prev.password === undefined) delete process.env.TREND_DB_PASSWORD;
+  else process.env.TREND_DB_PASSWORD = prev.password;
 });
 
 test("ucb explores unpulled arms first", () => {

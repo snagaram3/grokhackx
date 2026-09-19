@@ -143,6 +143,10 @@ test("slug, totalScore, velocityOf, and divergenceOf stay threshold-stable", () 
   assert.equal(velocityOf("camry", 120, [rising]), "rising");
   assert.equal(velocityOf("camry", 80, [rising]), "fading");
   assert.equal(velocityOf("camry", 102, [rising]), "peaking");
+  assert.equal(velocityOf("camry", 108, [rising]), "peaking");
+  assert.equal(velocityOf("camry", 109, [rising]), "rising");
+  assert.equal(velocityOf("camry", 92, [rising]), "peaking");
+  assert.equal(velocityOf("camry", 91, [rising]), "fading");
   assert.equal(divergenceOf(rising), 0.25);
   const bubble = topic({
     id: "hn-only",
@@ -183,5 +187,20 @@ test("classifyTopic routes QR campaigns, NWS weather, and tickers without a shar
   assert.equal(
     classifyTopic(topic({ id: "tsla", label: "Tesla", tickers: [{ symbol: "TSLA", sentiment: "mixed", mentions: 3 }] })),
     "markets",
+  );
+  assert.equal(
+    classifyTopic(
+      topic({
+        id: "wanted",
+        label: "Fugitive bulletin",
+        platforms: {
+          x: emptySlice(),
+          reddit: emptySlice(),
+          hn: emptySlice(),
+          public: { score: 40, posts: [post("Wanted poster", { sourceApi: "FBI Wanted" })] },
+        },
+      }),
+    ),
+    "security",
   );
 });

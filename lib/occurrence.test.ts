@@ -89,6 +89,8 @@ test("alignTotals maps overlay windows onto primary without inventing overlap", 
     { t: "2026-08-26T15:00:00.000Z", label: "3 PM", x: 0, reddit: 0, hn: 0, public: 9, total: 9 },
   ];
   assert.deepEqual(alignTotals(primary, overlay), [8, 0]);
+  assert.deepEqual(alignTotals([], overlay), []);
+  assert.deepEqual(alignTotals(primary, []), [0, 0]);
 });
 
 test("historyMarks stay off the chart until two snapshots exist", () => {
@@ -104,8 +106,17 @@ test("historyMarks stay off the chart until two snapshots exist", () => {
     ]).length,
     2,
   );
+  assert.equal(
+    historyMarks(series, [
+      { at: "2026-08-20T12:00:00.000Z", score: 8, receipts: 2 },
+      { at: "2026-08-26T12:30:00.000Z", score: 12, receipts: 6 },
+    ]).length,
+    1,
+  );
   const x = xAtTime("2026-08-26T12:30:00.000Z", series, 100);
   assert.ok(x !== null && x > 40 && x < 60);
+  assert.equal(xAtTime("2026-08-26T12:30:00.000Z", [], 100), null);
+  assert.equal(xAtTime("2026-08-26T12:30:00.000Z", [series[0]], 100), 50);
 });
 
 test("cronAuthorized allows local when CRON_SECRET is unset", () => {

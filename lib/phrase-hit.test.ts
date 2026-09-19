@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tokenHits } from "./phrase-hit";
-import { floorLine, inferQueryIntent, searchQuery, titleHits, titleScore } from "./query";
+import { floorLine, inferQueryIntent, needlesOf, searchQuery, titleHits, titleScore } from "./query";
 
 test("tokenHits keeps Camry a whole token", () => {
   assert.equal(tokenHits("New Camry hybrid", "Camry"), true);
@@ -45,6 +45,23 @@ test("inferQueryIntent classifies ticker, hashtag, campaign, product, and recall
   const generic = inferQueryIntent("blorptastic");
   assert.equal(generic.kind, "generic");
   assert.equal(generic.category, "culture");
+
+  const truck = inferQueryIntent("Cybertruck");
+  assert.equal(truck.kind, "product");
+  assert.equal(truck.category, "tech");
+
+  const keynote = inferQueryIntent("WWDC");
+  assert.equal(keynote.kind, "event");
+  assert.equal(keynote.category, "campaigns");
+});
+
+test("needlesOf strips ticker and hashtag prefixes so matching stays token-based", () => {
+  const ticker = needlesOf({ raw: "$TSLA", aliases: ["TSLA"] });
+  assert.ok(ticker.every((n) => n === "tsla"));
+  assert.ok(ticker.length >= 1);
+  const tag = needlesOf({ raw: "#HeatWaveFit", aliases: ["HeatWaveFit"] });
+  assert.ok(tag.every((n) => n === "heatwavefit"));
+  assert.ok(titleHits("TSLA earnings miss", ticker));
 });
 
 test("searchQuery quotes multi-word aliases and floorLine refuses invented reach", () => {
