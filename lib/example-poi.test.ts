@@ -458,6 +458,13 @@ test("same UTC hour overwrites; a ninth hour drops the oldest; a missing industr
   assert.equal(hours.at(-1), "2026-08-30T09:00:00.000Z");
 });
 
+test("industryOutlookFromHours stays thin until two hourly snaps exist", () => {
+  resetIndustrySeries();
+  const empty = industryOutlookFromHours("real-estate", 4);
+  assert.equal(empty.outlook, "thin");
+  assert.deepEqual(empty.window, [4]);
+});
+
 test("buildTrendPins floats Place-near example POI into the pin cap", () => {
   const kyoto = {
     id: "Q647285",

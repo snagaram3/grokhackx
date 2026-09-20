@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseCity, trendsCacheKey } from "./geo";
-import { payloadFromQrImageUrl } from "./qr";
+import { googleApiKey, hasGoogleKey } from "./gemini";
+import { decodeQrFromImageUrl, payloadFromQrImageUrl } from "./qr";
 import { vehicleQuery } from "./public-apis";
 import { formatResearchBrief, researchBriefFilename } from "./research-brief";
 import { clusteredListSchema, xTrendSchema, whyItemSchema } from "./schemas";
@@ -38,6 +39,90 @@ test("QR image URLs decode data/text/chl and ignore ordinary pages", () => {
   );
   assert.equal(payloadFromQrImageUrl("https://en.wikipedia.org/wiki/Camry"), null);
   assert.equal(payloadFromQrImageUrl("not a url"), null);
+});
+
+test("decodeQrFromImageUrl uses encoded chart params and never fetches a miss", async () => {
+  const orig = globalThis.fetch;
+  let fetches = 0;
+  globalThis.fetch = (async () => {
+    fetches += 1;
+    throw new Error("network should not run");
+  }) as typeof fetch;
+  try {
+    assert.equal(
+      await decodeQrFromImageUrl("https://chart.googleapis.com/chart?cht=qr&chl=https://camry.example/fit"),
+      "https://camry.example/fit",
+    );
+    assert.equal(await decodeQrFromImageUrl("https://en.wikipedia.org/wiki/Camry"), null);
+    assert.equal(await decodeQrFromImageUrl("not a url"), null);
+    assert.equal(fetches, 0);
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
+test("decodeQrFromImageUrl drops failed, tiny, huge, and non-png/jpeg image fetches", async () => {
+  const orig = globalThis.fetch;
+  const png = "https://cdn.example/poster.png";
+  const call = async (res: Partial<Response> & { arrayBuffer?: () => Promise<ArrayBuffer> }) => {
+    globalThis.fetch = (async () => res as Response) as typeof fetch;
+    return decodeQrFromImageUrl(png);
+  };
+  try {
+    assert.equal(await call({ ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(64) }), null);
+    assert.equal(
+      await call({
+        ok: true,
+        headers: new Headers({ "content-type": "image/png" }),
+        arrayBuffer: async () => new Uint8Array(16).buffer,
+      }),
+      null,
+    );
+    assert.equal(
+      await call({
+        ok: true,
+        headers: new Headers({ "content-type": "image/png" }),
+        arrayBuffer: async () => new Uint8Array(1_500_001).buffer,
+      }),
+      null,
+    );
+    assert.equal(
+      await call({
+        ok: true,
+        headers: new Headers({ "content-type": "image/gif" }),
+        arrayBuffer: async () => new Uint8Array(64).buffer,
+      }),
+      null,
+    );
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
+test("googleApiKey trims and accepts GEMINI_API_KEY when GOOGLE_API_KEY is unset", () => {
+  const prevGoogle = process.env.GOOGLE_API_KEY;
+  const prevGemini = process.env.GEMINI_API_KEY;
+  delete process.env.GOOGLE_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  assert.equal(googleApiKey(), undefined);
+  assert.equal(hasGoogleKey(), false);
+
+  process.env.GOOGLE_API_KEY = "  ";
+  process.env.GEMINI_API_KEY = " gemini-only ";
+  assert.equal(googleApiKey(), undefined);
+  assert.equal(hasGoogleKey(), false);
+
+  delete process.env.GOOGLE_API_KEY;
+  assert.equal(googleApiKey(), "gemini-only");
+  assert.equal(hasGoogleKey(), true);
+
+  process.env.GOOGLE_API_KEY = " google-first ";
+  assert.equal(googleApiKey(), "google-first");
+
+  if (prevGoogle === undefined) delete process.env.GOOGLE_API_KEY;
+  else process.env.GOOGLE_API_KEY = prevGoogle;
+  if (prevGemini === undefined) delete process.env.GEMINI_API_KEY;
+  else process.env.GEMINI_API_KEY = prevGemini;
 });
 
 test("zod schemas clamp X volume and reject empty cluster lists", () => {

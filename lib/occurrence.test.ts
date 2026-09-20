@@ -91,6 +91,18 @@ test("alignTotals maps overlay windows onto primary without inventing overlap", 
   assert.deepEqual(alignTotals(primary, overlay), [8, 0]);
 });
 
+test("alignTotals zeros invalid primary stamps and skips junk overlay times", () => {
+  const primary: TimeBucket[] = [
+    { t: "not-a-date", label: "bad", x: 0, reddit: 0, hn: 1, public: 0, total: 1 },
+    { t: "2026-08-26T13:00:00.000Z", label: "1 PM", x: 0, reddit: 0, hn: 1, public: 4, total: 5 },
+  ];
+  const overlay: TimeBucket[] = [
+    { t: "also-bad", label: "junk", x: 0, reddit: 0, hn: 0, public: 99, total: 99 },
+    { t: "2026-08-26T13:00:00.000Z", label: "1 PM", x: 0, reddit: 0, hn: 0, public: 8, total: 8 },
+  ];
+  assert.deepEqual(alignTotals(primary, overlay), [0, 8]);
+});
+
 test("historyMarks stay off the chart until two snapshots exist", () => {
   const series: TimeBucket[] = [
     { t: "2026-08-26T12:00:00.000Z", label: "12 PM", x: 0, reddit: 0, hn: 1, public: 0, total: 1 },
@@ -106,6 +118,11 @@ test("historyMarks stay off the chart until two snapshots exist", () => {
   );
   const x = xAtTime("2026-08-26T12:30:00.000Z", series, 100);
   assert.ok(x !== null && x > 40 && x < 60);
+  const sameStamp: TimeBucket[] = [
+    { t: "2026-08-26T12:00:00.000Z", label: "12 PM", x: 0, reddit: 0, hn: 1, public: 0, total: 1 },
+    { t: "2026-08-26T12:00:00.000Z", label: "12 PM", x: 0, reddit: 0, hn: 2, public: 0, total: 2 },
+  ];
+  assert.equal(xAtTime("2026-08-26T12:00:00.000Z", sameStamp, 100), 0);
 });
 
 test("cronAuthorized allows local when CRON_SECRET is unset", () => {

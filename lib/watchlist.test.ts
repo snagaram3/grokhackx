@@ -13,7 +13,7 @@ import {
 import { fitHistGb, occupancyVector } from "./histgb";
 import { deltaLabel, pct, rollupWatchlist, sortInsights } from "./watchlist-metrics";
 import { payloadFromQrImageUrl } from "./qr";
-import { insightForQuery, leadTopic, postsInBucket, relatedPrints, topicPosts, topicsInBucket } from "./watchlist-lookup";
+import { allTopicPosts, insightForQuery, leadTopic, postsInBucket, relatedPrints, topicPosts, topicsInBucket } from "./watchlist-lookup";
 import type { PoiInsight, TimeBucket, Topic, WatchlistEntity } from "./types";
 
 function entity(label: string, extra: string[] = []): WatchlistEntity {
@@ -242,6 +242,18 @@ test("leadTopic and relatedPrints follow payload order", () => {
   assert.equal(leadTopic(payload)?.label, "Camry");
   assert.deepEqual(relatedPrints(payload).map((t) => t.label), ["Tesla"]);
   assert.equal(leadTopic(null), null);
+  assert.equal(allTopicPosts([]).length, 0);
+  assert.equal(allTopicPosts([camry, tesla]).length, 0);
+  assert.equal(
+    allTopicPosts([
+      topic("Camry", [{ title: "a", url: "https://a.test/1", createdAt: "2026-08-26T00:00:00.000Z" }]),
+      topic("Tesla", [
+        { title: "b", url: "https://a.test/2", createdAt: "2026-08-26T00:00:00.000Z" },
+        { title: "c", url: "https://a.test/3", createdAt: "2026-08-26T00:00:00.000Z" },
+      ]),
+    ]).length,
+    3,
+  );
 });
 
 test("postsInBucket filters dated receipts to the selected window", () => {
@@ -415,4 +427,54 @@ test("memory model blobs round-trip HistGB JSON", async () => {
   const payload = { kind: "histgb", lr: 0.25, stumps: [], samples: 16, classes: 3, trainedAt: "2026-09-01T00:00:00.000Z" };
   await writeModelBlob(id, payload, 16);
   assert.deepEqual(await readModelBlob(id), payload);
+});
+
+test("tagReceipt gold tags persist in memory so insightsFor drops ignore", async () => {
+  const { addWatchlist, insightsFor, removeWatchlist, tagReceipt } = await import("./watchlist-store");
+  const label = "GoldTagPhraseQq";
+  const added = await addWatchlist(label, normalizeAliases(label));
+  const wiki = `https://en.wikipedia.org/wiki/${label}`;
+  const news = `https://reuters.test/${label}`;
+  const spam = `https://spam.test/${label}`;
+  const extra = `https://nhtsa.gov/${label}`;
+  await tagReceipt(added.id, wiki, "official");
+  await tagReceipt(added.id, news, "occupied");
+  await tagReceipt(added.id, spam, "ignore");
+  try {
+    const [hit] = await insightsFor([added], {
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      degraded: [],
+      sources: { x: false, reddit: false, hn: false, public: true },
+      topics: [
+        {
+          id: "t-gold",
+          label,
+          velocity: "rising",
+          divergence: 0,
+          tickers: [],
+          platforms: {
+            x: { score: 0, posts: [] },
+            reddit: { score: 0, posts: [] },
+            hn: { score: 0, posts: [] },
+            public: {
+              score: 40,
+              posts: [wiki, news, spam, extra].map((url, i) => ({
+                id: `g${i}`,
+                platform: "public" as const,
+                title: `${label} receipt ${i}`,
+                url,
+                score: 10,
+                createdAt: "2026-08-21T00:00:00.000Z",
+              })),
+            },
+          },
+        },
+      ],
+    });
+    assert.equal(hit.goldTags, 2);
+    assert.equal(hit.receiptCount, 3);
+    assert.ok(!hit.occupiers.some((o) => o.url === spam));
+  } finally {
+    await removeWatchlist(added.id);
+  }
 });
