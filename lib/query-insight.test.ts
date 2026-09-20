@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { inferQueryIntent, toQueryInsight } from "./query";
+import { floorLine, inferQueryIntent, toQueryInsight } from "./query";
 import type { SentimentReport, Topic } from "./types";
 
 function emptySlice() {
@@ -88,4 +88,30 @@ test("toQueryInsight counts receipts and keeps the topic match", () => {
     sentiment({ thin: true, lean: "thin" }),
   );
   assert.match(thin.floor, /thin/);
+
+  const unlabeled = toQueryInsight(intent, [topic("Camry", [{ title: "Camry", url: "https://a.test/1" }])], null);
+  assert.equal(unlabeled.match, "exact");
+  assert.equal(unlabeled.hitCount, 1);
+});
+
+test("floorLine names negative and mixed exact leans from titles only", () => {
+  const intent = inferQueryIntent("Camry");
+  assert.match(
+    floorLine(
+      intent,
+      sentiment({ lean: "neg", overall: { pos: 0, neg: 3, risk: 1, n: 4 } }),
+      4,
+      "exact",
+    ),
+    /negative in titles \(3\/4\)/,
+  );
+  assert.match(
+    floorLine(
+      intent,
+      sentiment({ lean: "mixed", overall: { pos: 2, neg: 2, risk: 0, n: 4 } }),
+      4,
+      "exact",
+    ),
+    /2 pos \/ 2 neg in 4 titles/,
+  );
 });

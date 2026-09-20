@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { classifyTopic } from "./desk";
-import { divergenceOf, slug, totalScore, velocityOf } from "./metrics";
+import { divergenceOf, peakHourCT, slug, totalScore, velocityOf } from "./metrics";
 import { confidenceOf, forecastNode, outlookFromScores, type HistoryPoint } from "./predict";
 import { buildSentiment } from "./sentiment";
 import type { MindNode, Post, Topic } from "./types";
@@ -184,4 +184,29 @@ test("classifyTopic routes QR campaigns, NWS weather, and tickers without a shar
     classifyTopic(topic({ id: "tsla", label: "Tesla", tickers: [{ symbol: "TSLA", sentiment: "mixed", mentions: 3 }] })),
     "markets",
   );
+});
+
+test("classifyTopic follows CISA, NHTSA, disease.sh, and ESPN source APIs", () => {
+  const fromSource = (id: string, sourceApi: string) =>
+    classifyTopic(
+      topic({
+        id,
+        label: "Bulletin",
+        platforms: {
+          x: emptySlice(),
+          reddit: emptySlice(),
+          hn: emptySlice(),
+          public: { score: 30, posts: [post("Advisory notice", { sourceApi })] },
+        },
+      }),
+    );
+  assert.equal(fromSource("cisa", "CISA"), "security");
+  assert.equal(fromSource("nhtsa", "NHTSA"), "markets");
+  assert.equal(fromSource("disease", "disease.sh"), "health");
+  assert.equal(fromSource("espn", "ESPN"), "sports");
+});
+
+test("peakHourCT abstains on a thin tape instead of inventing a Chicago hour", () => {
+  assert.equal(peakHourCT([]), undefined);
+  assert.equal(peakHourCT(Array.from({ length: 9 }, () => post("Camry hybrid"))), undefined);
 });
