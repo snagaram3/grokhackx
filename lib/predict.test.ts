@@ -185,3 +185,39 @@ test("classifyTopic routes QR campaigns, NWS weather, and tickers without a shar
     "markets",
   );
 });
+
+test("classifyTopic keeps tickers as markets even when a QR artifact is present", () => {
+  assert.equal(
+    classifyTopic(
+      topic({
+        id: "tsla-qr",
+        label: "Tesla",
+        tickers: [{ symbol: "TSLA", sentiment: "mixed", mentions: 1 }],
+      }),
+      [{ kind: "qr", value: "https://qrco.de/tesla", mentions: 1, platforms: ["public"] }],
+    ),
+    "markets",
+  );
+});
+
+test("classifyTopic routes USGS, CoinGecko, GitHub, wiki, GDELT, Open-Meteo, SpaceX, and Open Food Facts", () => {
+  const bulletin = (sourceApi: string) =>
+    topic({
+      id: sourceApi.toLowerCase().replace(/\s+/g, "-"),
+      label: "Bulletin",
+      platforms: {
+        x: emptySlice(),
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: { score: 40, posts: [post("Advisory notice", { sourceApi })] },
+      },
+    });
+  assert.equal(classifyTopic(bulletin("USGS")), "weather");
+  assert.equal(classifyTopic(bulletin("CoinGecko")), "markets");
+  assert.equal(classifyTopic(bulletin("GitHub")), "tech");
+  assert.equal(classifyTopic(bulletin("Wikipedia")), "culture");
+  assert.equal(classifyTopic(bulletin("GDELT")), "news");
+  assert.equal(classifyTopic(bulletin("Open-Meteo")), "weather");
+  assert.equal(classifyTopic(bulletin("SpaceX")), "tech");
+  assert.equal(classifyTopic(bulletin("Open Food Facts")), "health");
+});

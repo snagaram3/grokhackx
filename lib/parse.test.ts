@@ -4,7 +4,7 @@ import { parseCity, trendsCacheKey } from "./geo";
 import { payloadFromQrImageUrl } from "./qr";
 import { vehicleQuery } from "./public-apis";
 import { formatResearchBrief, researchBriefFilename } from "./research-brief";
-import { clusteredListSchema, xTrendSchema, whyItemSchema } from "./schemas";
+import { clusteredListSchema, xTrendListSchema, xTrendSchema, whyItemSchema, whyListSchema } from "./schemas";
 import { databaseName, isTrendDatabase, readTrendDbConfig } from "./trend-db";
 import { ucb } from "./rl";
 import type { ResearchPayload } from "./types";
@@ -45,6 +45,27 @@ test("zod schemas clamp X volume and reject empty cluster lists", () => {
   assert.equal(xTrendSchema.parse({ topic: "Camry", volume: -4 }).volume, 0);
   assert.throws(() => clusteredListSchema.parse({ topics: [] }));
   assert.equal(whyItemSchema.parse({ id: "t1", why: "x".repeat(400) }).why.length, 280);
+
+  const listed = xTrendListSchema.parse({
+    topics: [{ topic: "Camry", volume: "80" }],
+  });
+  assert.deepEqual(listed.topics[0].urls, []);
+  assert.equal(listed.topics[0].volume, 80);
+  assert.throws(() =>
+    xTrendListSchema.parse({
+      topics: Array.from({ length: 16 }, (_, i) => ({ topic: `t${i}`, volume: 1 })),
+    }),
+  );
+
+  const whys = whyListSchema.parse({
+    why: [{ id: "camry", why: "x".repeat(400) }],
+  });
+  assert.equal(whys.why[0].why.length, 280);
+  assert.throws(() =>
+    whyListSchema.parse({
+      why: Array.from({ length: 25 }, (_, i) => ({ id: `t${i}`, why: "on the tape" })),
+    }),
+  );
 });
 
 test("research brief lists dropped receipts and marks the default sense", () => {
@@ -80,6 +101,24 @@ test("research brief lists dropped receipts and marks the default sense", () => 
   assert.match(md, /WorldNews live thread/);
   assert.match(md, /Apple · 1 receipts · this copy/);
   assert.match(md, /Evidence only/);
+
+  const thin: ResearchPayload = {
+    query: "zzzz",
+    updatedAt: "2026-09-21T00:00:00Z",
+    summary: "No grounded receipts.",
+    findings: [],
+    openQuestions: [],
+    angles: [],
+    sources: [],
+    degraded: ["wikipedia", "duckduckgo"],
+    thin: true,
+  };
+  const emptyMd = formatResearchBrief(thin);
+  assert.match(emptyMd, /thin evidence/);
+  assert.match(emptyMd, /Degraded: wikipedia, duckduckgo/);
+  assert.match(emptyMd, /No grounded findings yet/);
+  assert.match(emptyMd, /No sources attached/);
+  assert.equal(/invented citation/i.test(emptyMd), true);
 });
 
 test("trend db names stay category-scoped and config abstains without host/user", () => {

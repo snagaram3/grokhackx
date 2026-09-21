@@ -13,14 +13,16 @@ import {
 } from "./example-poi";
 import {
   hourBucket,
+  industryBaselines,
   industryOutlookFromHours,
   industryWindow,
   peekIndustrySeries,
+  recordIndustryHour,
   resetIndustrySeries,
 } from "./example-poi-series";
 import { CITIES, PLACE_NEAR_KM } from "./geo";
 import { buildTrendPins, examplePinId, receiptPinId } from "./trend-geo";
-import type { Post } from "./types";
+import type { ExamplePoiCompare, Post } from "./types";
 
 const eiffel = {
   id: "Q243",
@@ -456,6 +458,45 @@ test("same UTC hour overwrites; a ninth hour drops the oldest; a missing industr
   assert.equal(hours.length, 8);
   assert.equal(hours[0], "2026-08-30T02:00:00.000Z");
   assert.equal(hours.at(-1), "2026-08-30T09:00:00.000Z");
+});
+
+test("industryBaselines divides liveNear by locatedCount and treats a missing industry as 0", () => {
+  resetIndustrySeries();
+  const call = (liveNear: number): ExamplePoiCompare["industries"][0] => ({
+    category: "automotive",
+    poiCount: 1,
+    liveNear,
+    nearestKm: 10,
+    sources: [],
+    factors: [],
+    constraints: [],
+    variables: [],
+    outlook: "thin",
+    confidence: 0,
+    thin: true,
+    analysis: "",
+    window: [],
+    prediction: { headline: "", nextAction: "", timeframe: "", confidence: 0 },
+  });
+  const compare = (at: string, locatedCount: number, liveNear: number): ExamplePoiCompare => ({
+    dataset: "test",
+    license: "cc-by-4.0",
+    collectedAt: at,
+    datasetSha: null,
+    exampleCount: 1,
+    locatedCount,
+    pairCount: 0,
+    pairs: [],
+    industries: [call(liveNear)],
+    thin: true,
+    analysis: "",
+    liveRefresh: "sample",
+  });
+  recordIndustryHour(compare("2026-09-21T01:10:00.000Z", 4, 2));
+  recordIndustryHour(compare("2026-09-21T02:10:00.000Z", 0, 9));
+  assert.deepEqual(industryWindow("automotive"), [2, 9]);
+  assert.deepEqual(industryBaselines("automotive"), { last: 0, prev: 0.5 });
+  assert.deepEqual(industryBaselines("healthcare"), { last: 0, prev: 0 });
 });
 
 test("buildTrendPins floats Place-near example POI into the pin cap", () => {

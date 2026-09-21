@@ -41,6 +41,49 @@ test("plugTopicFromPosts keeps Camry exact and does not treat camera as a hit", 
   assert.equal(near[0].platforms.public.posts.length, 0);
 });
 
+test("clusterTopics without a Google key falls back to score-ranked singletons", async () => {
+  const prevGoogle = process.env.GOOGLE_API_KEY;
+  const prevGemini = process.env.GEMINI_API_KEY;
+  delete process.env.GOOGLE_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  const sources = { x: false, reddit: true, hn: true, public: false };
+  try {
+    const { clusterTopics } = await import("./cluster");
+    const grouped = await clusterTopics({
+      reddit: [post("Camry hybrid recall", "reddit")],
+      hn: [{ ...post("Civic thread", "hn"), score: 90 }],
+      x: [],
+      public: [],
+      sources,
+      degraded: [],
+    });
+    assert.equal(grouped.length, 2);
+    assert.equal(grouped[0].label, "Civic thread");
+    assert.equal(grouped[0].platforms.hn.posts.length, 1);
+    assert.equal(grouped[0].platforms.reddit.posts.length, 0);
+    assert.equal(grouped[1].label, "Camry hybrid recall");
+    assert.equal(grouped[1].match, undefined);
+
+    const many = await clusterTopics({
+      reddit: Array.from({ length: 20 }, (_, i) => ({
+        ...post(`zzzz ${i}`, "reddit"),
+        score: 20 - i,
+      })),
+      hn: [],
+      x: [],
+      public: [],
+      sources,
+      degraded: [],
+    });
+    assert.equal(many.length, 18);
+  } finally {
+    if (prevGoogle === undefined) delete process.env.GOOGLE_API_KEY;
+    else process.env.GOOGLE_API_KEY = prevGoogle;
+    if (prevGemini === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = prevGemini;
+  }
+});
+
 test("neighborTopics only returns tape prints that share the query tokens", () => {
   const camry: Topic = {
     id: "camry",
