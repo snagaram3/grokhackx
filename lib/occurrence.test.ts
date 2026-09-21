@@ -120,6 +120,25 @@ test("cronAuthorized allows local when CRON_SECRET is unset", () => {
     true,
   );
   assert.equal(cronAuthorized(new Request("http://localhost/api/collect?hourly=1")), false);
+  process.env.CRON_SECRET = "  secret  ";
+  assert.equal(
+    cronAuthorized(
+      new Request("http://localhost/api/collect?hourly=1", { headers: { authorization: "Bearer secret" } }),
+    ),
+    true,
+  );
+  assert.equal(
+    cronAuthorized(
+      new Request("http://localhost/api/collect?hourly=1", { headers: { authorization: "Bearer wrong" } }),
+    ),
+    false,
+  );
+  assert.equal(
+    cronAuthorized(
+      new Request("http://localhost/api/collect?hourly=1", { headers: { authorization: "secret" } }),
+    ),
+    false,
+  );
   if (prev === undefined) delete process.env.CRON_SECRET;
   else process.env.CRON_SECRET = prev;
 });

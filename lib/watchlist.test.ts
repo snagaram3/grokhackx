@@ -50,6 +50,10 @@ test("receiptHitsAlias uses word boundaries", () => {
 test("isOfficial marks wiki, nhtsa, and brand-like hosts", () => {
   assert.equal(isOfficial("https://en.wikipedia.org/wiki/Camry", "Camry"), true);
   assert.equal(isOfficial("https://www.nhtsa.gov/recalls", "Camry"), true);
+  assert.equal(isOfficial("https://www.nih.gov/news/camry", "Camry"), true);
+  assert.equal(isOfficial("https://arxiv.org/abs/2401.00001", "Camry"), true);
+  assert.equal(isOfficial("https://www.uspto.gov/camry", "Camry"), true);
+  assert.equal(isOfficial("https://www.federalregister.gov/documents/camry", "Camry"), true);
   assert.equal(isOfficial("https://www.reuters.com/camry", "Camry"), false);
 });
 
@@ -150,6 +154,41 @@ function fakeInsight(label: string, occupancy: number, organic: number): PoiInsi
     window: [4, 6],
   };
 }
+
+test("rollupWatchlist treats occupancy 0.5 as occupied and leaves thin out of means", () => {
+  const thin = fakeInsight("Thin", 0.9, 0.1);
+  thin.thin = true;
+  thin.outlook = "thin";
+  thin.receiptCount = 2;
+  thin.officialCount = 2;
+  thin.occupiedCount = 0;
+  const occupied = fakeInsight("Occupied", 0.5, 0.5);
+  occupied.outlook = "rising";
+  occupied.officialCount = 3;
+  occupied.occupiedCount = 3;
+  const under = fakeInsight("Under", 0.49, 0.51);
+  under.outlook = "fading";
+  under.officialCount = 1;
+  under.occupiedCount = 1;
+  const rollup = rollupWatchlist([thin, occupied, under]);
+  assert.equal(rollup.watched, 3);
+  assert.equal(rollup.receipts, 22);
+  assert.equal(rollup.thin, 1);
+  assert.equal(rollup.occupied, 1);
+  assert.equal(rollup.rising, 1);
+  assert.equal(rollup.fading, 1);
+  assert.equal(rollup.lead?.entity.label, "Thin");
+  assert.equal(rollup.officialReceipts, 6);
+  assert.equal(rollup.occupiedReceipts, 4);
+  assert.equal(rollup.organicMean, (0.5 + 0.51) / 2);
+  assert.equal(rollup.occupancyMean, (0.5 + 0.49) / 2);
+
+  const allThin = rollupWatchlist([thin]);
+  assert.equal(allThin.organicMean, null);
+  assert.equal(allThin.occupancyMean, null);
+  assert.equal(allThin.occupied, 0);
+  assert.equal(allThin.rising, 0);
+});
 
 test("sortInsights rank keeps higher rankScore first", () => {
   const rows = sortInsights(
@@ -415,4 +454,46 @@ test("memory model blobs round-trip HistGB JSON", async () => {
   const payload = { kind: "histgb", lr: 0.25, stumps: [], samples: 16, classes: 3, trainedAt: "2026-09-01T00:00:00.000Z" };
   await writeModelBlob(id, payload, 16);
   assert.deepEqual(await readModelBlob(id), payload);
+});
+
+test("memory tape-watch save then load keeps ids and receipt counts", async () => {
+  const prev = {
+    host: process.env.TREND_DB_HOST,
+    user: process.env.TREND_DB_USER,
+  };
+  delete process.env.TREND_DB_HOST;
+  delete process.env.TREND_DB_USER;
+  try {
+    const { loadTapeWatch, saveTapeWatch } = await import("./watchlist-store");
+    const prior = await loadTapeWatch();
+    assert.equal(prior.backend, "memory");
+    const id = `tape-watch-coverage-${Date.now()}`;
+    const saved = await saveTapeWatch({
+      ids: [...prior.store.ids, id],
+      snaps: {
+        ...prior.store.snaps,
+        [id]: {
+          topicId: id,
+          label: id,
+          velocity: "rising",
+          lean: "thin",
+          pos: 0,
+          neg: 0,
+          receiptCount: 4,
+          firstAt: null,
+          at: "2026-09-21T10:00:00.000Z",
+        },
+      },
+    });
+    assert.equal(saved.backend, "memory");
+    const loaded = await loadTapeWatch();
+    assert.equal(loaded.backend, "memory");
+    assert.ok(loaded.store.ids.includes(id));
+    assert.equal(loaded.store.snaps[id]?.receiptCount, 4);
+  } finally {
+    if (prev.host === undefined) delete process.env.TREND_DB_HOST;
+    else process.env.TREND_DB_HOST = prev.host;
+    if (prev.user === undefined) delete process.env.TREND_DB_USER;
+    else process.env.TREND_DB_USER = prev.user;
+  }
 });
