@@ -284,6 +284,22 @@ test("insightForQuery prefers exact label then alias", () => {
   assert.equal(insightForQuery([tesla, camry], "Toyota Camry")?.entity.label, "Camry");
   assert.equal(insightForQuery([tesla, camry], "tes")?.entity.label, "Tesla");
   assert.equal(insightForQuery([tesla, camry], "  "), null);
+  assert.equal(insightForQuery([tesla, camry], "Mustang"), null);
+  assert.deepEqual(topicPosts(null), []);
+  assert.deepEqual(topicPosts(undefined), []);
+  assert.deepEqual(relatedPrints(undefined), []);
+  assert.deepEqual(
+    relatedPrints(
+      {
+        topics: [topic("Camry", []), topic("Tesla", []), topic("Civic", [])],
+        updatedAt: "2026-08-26T00:00:00.000Z",
+        sources: { x: false, reddit: false, hn: false, public: true },
+        degraded: [],
+      },
+      1,
+    ).map((t) => t.label),
+    ["Tesla"],
+  );
 });
 
 test("payloadFromQrImageUrl reads chart-API data params", () => {
@@ -407,6 +423,22 @@ test("scorePoi drops ignore tags, counts gold tags, and lets occupancy HistGB cl
   assert.ok(modeled.officialCount >= 1, "official host should still score official under occupancy HistGB");
   assert.ok(modeled.occupiedCount >= 1, "QR + unofficial host should score occupied under occupancy HistGB");
   assert.equal(modeled.receiptCount, 4);
+});
+
+test("addWatchlist same slug replaces aliases in memory", async () => {
+  const { addWatchlist, listWatchlist, removeWatchlist } = await import("./watchlist-store");
+  const label = "CoverageAliasReplaceZz";
+  const first = await addWatchlist(label, ["first"]);
+  try {
+    const second = await addWatchlist(label, ["second", "alias"]);
+    assert.equal(second.id, first.id);
+    const listed = await listWatchlist();
+    const row = listed.entities.find((e) => e.id === first.id);
+    assert.deepEqual(row?.aliases, ["second", "alias"]);
+    assert.equal(listed.entities.filter((e) => e.id === first.id).length, 1);
+  } finally {
+    await removeWatchlist(first.id);
+  }
 });
 
 test("memory model blobs round-trip HistGB JSON", async () => {

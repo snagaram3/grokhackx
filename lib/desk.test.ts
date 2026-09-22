@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildCausation, buildTimeseries } from "./desk";
+import { buildCausation, buildTimeseries, classifyTopic } from "./desk";
 import type { Post, Topic } from "./types";
 
 function emptySlice() {
@@ -75,6 +75,41 @@ test("buildCausation treats recall language as a risk driver, not a slogan", () 
   assert.ok(report.drivers.some((d) => d.id === "risk" && /recall/.test(d.label)));
   assert.ok(report.drivers.some((d) => d.id === "hashtags"));
   assert.ok(report.drivers.some((d) => d.id === "velocity" && d.label === "Cooling"));
+});
+
+test("classifyTopic treats a hashtag label plus QR text as a campaign without artifacts", () => {
+  const campaign = topic(
+    [post("public", "Scan this qr for the drop", "2026-08-26T12:00:00.000Z")],
+    { label: "#HeatWaveFit" },
+  );
+  assert.equal(classifyTopic(campaign), "campaigns");
+  assert.equal(
+    classifyTopic(
+      topic([post("public", "Camry hybrid thread", "2026-08-26T12:00:00.000Z")], { label: "#HeatWaveFit" }),
+    ),
+    "markets",
+    "hashtag label alone does not beat a Camry keyword when no QR is on the tape",
+  );
+});
+
+test("classifyTopic sourceApi includes-match routes leftover official feeds", () => {
+  const fromSource = (sourceApi: string, label = "Bulletin") =>
+    classifyTopic(
+      topic([
+        {
+          platform: "public",
+          title: label,
+          url: `https://feed.test/${encodeURIComponent(sourceApi)}`,
+          score: 20,
+          createdAt: "2026-08-26T12:00:00.000Z",
+          sourceApi,
+        },
+      ]),
+    );
+  assert.equal(fromSource("NASA EONET alerts"), "weather");
+  assert.equal(fromSource("Federal Register notice"), "news");
+  assert.equal(fromSource("arXiv preprint"), "tech");
+  assert.equal(fromSource("Frankfurter FX"), "markets");
 });
 
 test("buildTimeseries ignores invalid dates and buckets dated receipts", () => {
