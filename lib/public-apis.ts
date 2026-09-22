@@ -63,7 +63,7 @@ function googleNewsRss(q: string, edition = "hl=en&gl=GB&ceid=GB:en"): string {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&${edition}`;
 }
 
-function youtubeItems(data: unknown): Post[] {
+export function youtubeItems(data: unknown): Post[] {
   return asArray(asRecord(data)?.items)
     .map((row) => {
       const item = asRecord(row);
@@ -132,7 +132,7 @@ async function getText(url: string, ms = FEED_MS): Promise<string> {
   return res.text();
 }
 
-function parseRss(xml: string, sourceApi: string): Post[] {
+export function parseRss(xml: string, sourceApi: string): Post[] {
   if (!xml.includes("<item") && !xml.includes("<entry")) throw new Error(`${sourceApi} not rss`);
   const chunks = xml.split(/<entry[\s>]|<item[\s>]/).slice(1);
   const posts: Post[] = [];
@@ -298,13 +298,13 @@ export function vehicleQuery(topic: string): { make: string; model: string; year
   return year ? { make, model, year } : { make, model };
 }
 
-function gdeltStamp(raw: string): string | undefined {
+export function gdeltStamp(raw: string): string | undefined {
   const m = raw.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
   if (!m) return raw || undefined;
   return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`;
 }
 
-function mapGdeltArticles(data: unknown): Post[] {
+export function mapGdeltArticles(data: unknown): Post[] {
   return asArray(asRecord(data)?.articles)
     .map((row) => {
       const a = asRecord(row);
@@ -325,7 +325,7 @@ async function fetchGdelt(topic?: string): Promise<Post[]> {
   return mapGdeltArticles(await getJson(url));
 }
 
-function wikiPostsFromFeatured(data: unknown): Post[] {
+export function wikiPostsFromFeatured(data: unknown): Post[] {
   const most = asArray(asRecord(asRecord(data)?.mostread)?.articles);
   const fromMost = most
     .map((row) => {
@@ -398,7 +398,7 @@ async function wikipediaTape(): Promise<Post[]> {
   throw new Error("Wikipedia empty");
 }
 
-function bskyHref(uri: string, handle: string): string {
+export function bskyHref(uri: string, handle: string): string {
   const rkey = uri.split("/").pop() || "";
   return handle && rkey ? `https://bsky.app/profile/${handle}/post/${rkey}` : "";
 }
@@ -415,14 +415,14 @@ function mapBskyPost(row: unknown): Post | null {
   return post(text, href, 55, "Bluesky", str(record?.createdAt) || str(p.indexedAt) || undefined);
 }
 
-function mapBskySearch(data: unknown): Post[] {
+export function mapBskySearch(data: unknown): Post[] {
   return asArray(asRecord(data)?.posts)
     .map(mapBskyPost)
     .filter((p): p is Post => Boolean(p))
     .slice(0, PER_FEED);
 }
 
-function mapBskyFeed(data: unknown): Post[] {
+export function mapBskyFeed(data: unknown): Post[] {
   return asArray(asRecord(data)?.feed)
     .map((row) => mapBskyPost(asRecord(row)?.post))
     .filter((p): p is Post => Boolean(p))
