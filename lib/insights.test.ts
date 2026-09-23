@@ -151,4 +151,20 @@ test("calculateFootprint floors weak percentiles at 10 and maps sentiment from t
     }),
   );
   assert.equal(mixed.sentiment, "mixed");
+
+  const neutral = await calculateFootprint(
+    poi(),
+    [source("n", 0.8, 4000)],
+    analysis({
+      score: 60,
+      constraints: [
+        { id: "c0", name: "A", threshold: 70, current: 80, met: true, impact: "critical" },
+        { id: "c1", name: "B", threshold: 70, current: 80, met: true, impact: "critical" },
+        { id: "c2", name: "C", threshold: 70, current: 10, met: false, impact: "high" },
+        { id: "c3", name: "D", threshold: 70, current: 10, met: false, impact: "high" },
+        { id: "c4", name: "E", threshold: 70, current: 80, met: true, impact: "medium" },
+      ],
+    }),
+  );
+  assert.equal(neutral.sentiment, "neutral");
 });

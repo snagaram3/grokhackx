@@ -85,6 +85,12 @@ test("wikiTitleFromUrl decodes Inc. and Watch", () => {
   assert.equal(wikiTitleFromUrl("https://en.wikipedia.org/wiki/Apple_Watch"), "Apple Watch");
 });
 
+test("wikiTitleFromUrl ignores non-wiki hosts, junk, and pages outside /wiki/", () => {
+  assert.equal(wikiTitleFromUrl("https://news.ycombinator.com/item?id=1"), null);
+  assert.equal(wikiTitleFromUrl("https://en.wikipedia.org/w/index.php?title=Apple"), null);
+  assert.equal(wikiTitleFromUrl("not a url"), null);
+});
+
 test("worldnews without apple is off-query; wiki and pubmed hit", () => {
   assert.equal(sourceHitsQuery(worldnews, "apple"), false);
   assert.equal(sourceHitsQuery(appleWiki, "apple"), true);
@@ -176,4 +182,27 @@ test("sliceResearchPayload keeps only the chosen sense", () => {
     sliced.findings.some((f) => f.evidenceIds.includes("hn-1")),
     false,
   );
+});
+
+test("sliceResearchPayload is identity for a missing or empty sense", () => {
+  const pack = packResearch("apple", [appleWiki, appleInc, pubmed]);
+  const payload: ResearchPayload = {
+    query: "apple",
+    updatedAt: "2026-08-26T00:00:00Z",
+    summary: pack.summary,
+    findings: [{ claim: "Fruit page exists", evidenceIds: ["wikipedia-1"], confidence: "high" }],
+    openQuestions: pack.openQuestions,
+    angles: pack.angles,
+    sources: pack.kept,
+    degraded: [],
+    thin: false,
+    droppedCount: pack.droppedCount,
+    dropped: pack.dropped,
+    senses: pack.senses,
+    defaultSenseId: pack.defaultSense?.id ?? null,
+  };
+  assert.equal(sliceResearchPayload(payload, null), payload);
+  assert.equal(sliceResearchPayload(payload, "not-a-sense"), payload);
+  const emptySenses = { ...payload, senses: [] };
+  assert.equal(sliceResearchPayload(emptySenses, pack.senses[0]?.id ?? "apple"), emptySenses);
 });

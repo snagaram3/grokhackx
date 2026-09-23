@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildCausation, buildTimeseries } from "./desk";
-import type { Post, Topic } from "./types";
+import { buildCausation, buildTimeseries, classifyTopic } from "./desk";
+import type { CategoryId, Post, Topic } from "./types";
 
 function emptySlice() {
   return { score: 0, posts: [] as Post[] };
@@ -97,4 +97,127 @@ test("buildTimeseries ignores invalid dates and buckets dated receipts", () => {
     series.reduce((n, b) => n + b.public, 0),
     1,
   );
+});
+
+function sourced(sourceApi: string, title = "Bulletin"): Topic {
+  return topic(
+    [
+      {
+        platform: "public",
+        title,
+        url: `https://public.test/${encodeURIComponent(sourceApi)}`,
+        score: 10,
+        createdAt: "2026-08-26T12:00:00.000Z",
+        sourceApi,
+      },
+    ],
+    { id: sourceApi.toLowerCase().replace(/\s+/g, "-"), label: "Advisory notice" },
+  );
+}
+
+test("classifyTopic leftover sourceApis vote the catalog category, not the generic label", () => {
+  const routes: [string, CategoryId][] = [
+    ["BBC", "news"],
+    ["Reuters", "news"],
+    ["NYT", "news"],
+    ["NPR", "news"],
+    ["The Guardian", "news"],
+    ["Google News", "news"],
+    ["Al Jazeera", "news"],
+    ["NHK World", "news"],
+    ["ReliefWeb", "news"],
+    ["DuckDuckGo", "news"],
+    ["YouTube", "culture"],
+    ["Bluesky", "culture"],
+    ["TVMaze", "culture"],
+    ["iTunes", "culture"],
+    ["Jikan", "culture"],
+    ["Mastodon", "culture"],
+    ["Open Library", "culture"],
+    ["nager.date", "culture"],
+    ["TheSportsDB", "sports"],
+    ["CheapShark", "markets"],
+    ["CoinCap", "markets"],
+    ["CryptoCompare", "markets"],
+    ["Fear & Greed", "markets"],
+    ["Stack Overflow", "tech"],
+    ["TechCrunch", "tech"],
+    ["dev.to", "tech"],
+    ["Lobsters", "tech"],
+    ["OpenAlex", "tech"],
+    ["Spaceflight News", "tech"],
+    ["GDACS", "weather"],
+    ["Carbon Intensity", "weather"],
+  ];
+  for (const [sourceApi, category] of routes) {
+    assert.equal(classifyTopic(sourced(sourceApi)), category, sourceApi);
+  }
+});
+
+test("classifyTopic keyword votes still route when sourceApi is missing", () => {
+  const keywords: [string, CategoryId][] = [
+    ["Election treaty filed", "news"],
+    ["Hurricane forecast update", "weather"],
+    ["Vaccine hospital briefing", "health"],
+    ["Ransomware breach advisory", "security"],
+    ["Bitcoin ETF filing", "markets"],
+    ["NBA playoff preview", "sports"],
+  ];
+  for (const [title, category] of keywords) {
+    assert.equal(
+      classifyTopic(topic([post("public", title, "2026-08-26T12:00:00.000Z")], { id: title, label: "Advisory notice" })),
+      category,
+      title,
+    );
+  }
+});
+
+test("buildTimeseries uses 15-minute steps under 4h and 6-hour steps past 48h", () => {
+  const tight = buildTimeseries([
+    topic([
+      post("hn", "open", "2026-08-26T12:00:00.000Z"),
+      post("public", "close", "2026-08-26T12:20:00.000Z"),
+    ]),
+  ]);
+  assert.ok(tight.length >= 2);
+  assert.equal(
+    new Date(tight[1].t).getTime() - new Date(tight[0].t).getTime(),
+    15 * 60_000,
+  );
+
+  const wide = buildTimeseries([
+    topic([
+      post("hn", "open", "2026-08-26T12:00:00.000Z"),
+      post("public", "close", "2026-08-30T12:00:00.000Z"),
+    ]),
+  ]);
+  assert.ok(wide.length >= 2);
+  assert.equal(
+    new Date(wide[1].t).getTime() - new Date(wide[0].t).getTime(),
+    6 * 3600_000,
+  );
+});
+
+test("buildCausation labels rising and peaking velocity without inventing a WHY", () => {
+  const rising = buildCausation(
+    topic(
+      [
+        post("hn", "Camry hybrid thread", "2026-08-26T12:00:00.000Z"),
+        post("public", "Camry in world news", "2026-08-26T13:00:00.000Z"),
+      ],
+      { velocity: "rising" },
+    ),
+  );
+  assert.ok(rising.drivers.some((d) => d.id === "velocity" && d.label === "Rising velocity"));
+
+  const peaking = buildCausation(
+    topic(
+      [
+        post("hn", "Camry hybrid thread", "2026-08-26T12:00:00.000Z"),
+        post("public", "Camry in world news", "2026-08-26T13:00:00.000Z"),
+      ],
+      { velocity: "peaking" },
+    ),
+  );
+  assert.ok(peaking.drivers.some((d) => d.id === "velocity" && d.label === "At peak"));
 });
