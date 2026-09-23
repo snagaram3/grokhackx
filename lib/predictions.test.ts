@@ -119,3 +119,10 @@ test("generatePredictionSummary stays recap-only after peak", () => {
   const peaked = generatePredictionSummary(topic("peaking", 0.8, { hn: 80 }));
   assert.match(peaked.headline, /peak/i);
 });
+
+test("generatePredictionSummary at-peak names likely spread platforms", () => {
+  const spreading = generatePredictionSummary(topic("peaking", 0.2, { hn: 90 }));
+  assert.match(spreading.headline, /At peak, spreading to/);
+  assert.match(spreading.headline, /\bx\b|\breddit\b|\bpublic\b/);
+  assert.match(spreading.nextAction, /Amplify now while hot/);
+});

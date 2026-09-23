@@ -160,6 +160,11 @@ test("sortInsights rank keeps higher rankScore first", () => {
   assert.equal(rows[0].entity.label, "High");
 });
 
+test("memory removeWatchlist is false for an unknown id", async () => {
+  const { removeWatchlist } = await import("./watchlist-store");
+  assert.equal(await removeWatchlist("does-not-exist-coverage-047f"), false);
+});
+
 test("watchlist store add, join tape, remove", async () => {
   const { addWatchlist, insightsFor, listWatchlist, removeWatchlist } = await import("./watchlist-store");
   const label = "WatchlistTestPhraseZz";
