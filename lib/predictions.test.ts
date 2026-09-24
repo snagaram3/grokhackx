@@ -119,3 +119,55 @@ test("generatePredictionSummary stays recap-only after peak", () => {
   const peaked = generatePredictionSummary(topic("peaking", 0.8, { hn: 80 }));
   assert.match(peaked.headline, /peak/i);
 });
+
+test("generatePredictionSummary tells operators the pre-peak window", () => {
+  const rising = generatePredictionSummary(topic("rising", 0.2, { hn: 90, reddit: 40, public: 20 }));
+  assert.match(rising.headline, /Will peak in \d+h/);
+  assert.match(rising.nextAction, /Post now|maximum engagement/i);
+});
+
+test("detectRiskClustering is high from risk ratio even without a four-post cluster", () => {
+  const hot = detectRiskClustering(topic("rising", 0.4, { public: 10 }), sentiment(2, 0, 5));
+  assert.equal(hot.clustering, false);
+  assert.equal(hot.level, "high");
+  assert.equal(hot.riskRatio, 0.4);
+});
+
+test("predictPlatformSpread boosts HN when the brief is tech", () => {
+  const baseBrief = {
+    topicId: "camry",
+    whyTrending: "",
+    confidence: 0.4,
+    category: "culture" as const,
+    artifacts: [],
+    audiences: [],
+    campaign: { angle: "", forCompetitors: "", risk: "low" as const, timing: "rising" as const, hook: "" },
+    causation: {
+      topicId: "camry",
+      firstAt: null,
+      firstPlatform: null,
+      lagHours: null,
+      peakAt: null,
+      drivers: [],
+      thin: true,
+    },
+    sentiment: sentiment(0, 0, 0),
+  };
+  const bubble = topic("rising", 0.8, { x: 40 });
+  const culture = predictPlatformSpread(bubble, baseBrief);
+  const tech = predictPlatformSpread(bubble, { ...baseBrief, category: "tech" });
+  const cultureHn = culture.willSpreadTo.find((p) => p.platform === "hn");
+  const techHn = tech.willSpreadTo.find((p) => p.platform === "hn");
+  assert.ok(cultureHn && techHn);
+  assert.ok(techHn.probability > cultureHn.probability);
+});
+
+test("predictCampaignArc at peak holds then fades", () => {
+  const peak = predictCampaignArc(topic("peaking", 0.3, { public: 40 }));
+  assert.equal(peak.currentPhase, "peak");
+  assert.deepEqual(
+    peak.arcCurve.map((c) => c.phase),
+    ["peak", "fade"],
+  );
+  assert.equal(peak.arcCurve[0]?.durationHours, 72);
+});

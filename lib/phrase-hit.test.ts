@@ -47,6 +47,42 @@ test("inferQueryIntent classifies ticker, hashtag, campaign, product, and recall
   assert.equal(generic.category, "culture");
 });
 
+test("inferQueryIntent leftover products stay markets; event words stay campaigns unless risk language", () => {
+  const civic = inferQueryIntent("Civic");
+  assert.equal(civic.kind, "product");
+  assert.equal(civic.category, "markets");
+  assert.ok(civic.aliases.some((a) => a.toLowerCase().includes("honda")));
+
+  const tesla = inferQueryIntent("Tesla");
+  assert.equal(tesla.kind, "product");
+  assert.equal(tesla.category, "markets");
+  assert.ok(tesla.aliases.some((a) => a.toLowerCase() === "tsla"));
+
+  const mustang = inferQueryIntent("Mustang");
+  assert.equal(mustang.kind, "product");
+  assert.equal(mustang.category, "markets");
+
+  const ces = inferQueryIntent("CES keynote");
+  assert.equal(ces.kind, "event");
+  assert.equal(ces.category, "campaigns");
+
+  const bowl = inferQueryIntent("Super Bowl");
+  assert.equal(bowl.kind, "event");
+  assert.equal(bowl.category, "campaigns");
+
+  const earnings = inferQueryIntent("earnings");
+  assert.equal(earnings.kind, "event");
+  assert.equal(earnings.category, "campaigns");
+
+  const lawsuit = inferQueryIntent("launch lawsuit");
+  assert.equal(lawsuit.kind, "event");
+  assert.equal(lawsuit.category, "news");
+
+  const ban = inferQueryIntent("earnings ban");
+  assert.equal(ban.kind, "event");
+  assert.equal(ban.category, "news");
+});
+
 test("searchQuery quotes multi-word aliases and floorLine refuses invented reach", () => {
   assert.equal(searchQuery({ raw: "Camry", aliases: [] }), "Camry");
   assert.ok(searchQuery({ raw: "Camry", aliases: ["Toyota Camry"] }).includes('"Toyota Camry"'));
