@@ -152,3 +152,35 @@ test("calculateFootprint floors weak percentiles at 10 and maps sentiment from t
   );
   assert.equal(mixed.sentiment, "mixed");
 });
+
+test("calculateFootprint applies industry multipliers and marks weak engagement as decreasing", async () => {
+  const sources = [source("a", 0.8, 4000)];
+  const tech = await calculateFootprint(poi({ category: "technology" }), sources, analysis({ category: "technology" }));
+  const health = await calculateFootprint(poi({ category: "healthcare" }), sources, analysis({ category: "healthcare" }));
+  assert.ok(tech.marketPenetration > health.marketPenetration);
+  assert.equal(tech.dollarImpact.breakdown[0]?.amount, Math.floor(tech.dollarImpact.estimated * 0.4));
+  assert.equal(tech.dollarImpact.breakdown[1]?.amount, Math.floor(tech.dollarImpact.estimated * 0.25));
+
+  const weak = await calculateFootprint(
+    poi({ relevanceScore: 0.1 }),
+    [source("one", 0.4, 100)],
+    analysis({ score: 30, constraints: analysis().constraints.map((c) => ({ ...c, met: false })) }),
+  );
+  assert.equal(
+    weak.metrics.find((m) => m.metric === "Engagement Rate")?.trend,
+    "decreasing",
+  );
+});
+
+test("analyzeIndustry names unmet critical constraints instead of inventing a WHY", async () => {
+  const poor = await analyzeIndustry("automotive", poi(), [source("poor", 0.6, 100)]);
+  assert.ok(poor.insights.some((line) => /Critical attention needed/.test(line)));
+  assert.ok(poor.insights.some((line) => /performance index/.test(line)));
+  assert.ok(poor.constraints.some((c) => c.impact === "critical" && !c.met));
+
+  const strong = await analyzeIndustry("technology", poi({ category: "technology" }), [
+    source("a", 0.9, 8000),
+    source("b", 0.9, 8000),
+  ]);
+  assert.ok(strong.insights.some((line) => /Positive momentum/.test(line)));
+});

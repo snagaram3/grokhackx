@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ageTranslations,
+  boostTopic,
+  boostTrends,
   campaignMove,
   captureArtifacts,
   improvisationsFor,
@@ -201,4 +203,131 @@ test("improvisationsFor ranks ingest gaps as P0 and never invents a ticker overl
   const finance = items.find((i) => /Finance overlay/i.test(i.title));
   assert.ok(finance);
   assert.match(finance!.next, /never invent symbols/i);
+});
+
+test("whyTrending names peak attention without inventing a cause", () => {
+  const peak = topic({
+    id: "camry",
+    label: "Camry",
+    velocity: "peaking",
+    divergence: 0.4,
+    platforms: {
+      x: { score: 40, posts: [post("Camry hybrid thread")] },
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: emptySlice(),
+    },
+  });
+  const why = whyTrending(peak, []);
+  assert.match(why.why, /At peak attention/);
+  assert.equal(/invent/i.test(why.why), false);
+});
+
+test("ageTranslations keep every lens practical and conservative", () => {
+  const lenses = ageTranslations(topic({ id: "camry", label: "Camry", velocity: "rising" }));
+  const byLens = Object.fromEntries(lenses.map((a) => [a.lens, a]));
+  assert.match(byLens["gen-z"]!.takeaway, /point of view/i);
+  assert.match(byLens.millennial!.takeaway, /purchase|commute|bill/i);
+  assert.match(byLens["gen-x"]!.takeaway, /rising/);
+  assert.match(byLens.boomer!.takeaway, /family|money|news/i);
+});
+
+test("improvisationsFor flags reddit 403s, single-platform bubbles, and thin causation", () => {
+  const bubbles = [
+    topic({ id: "a", label: "A", divergence: 0.7 }),
+    topic({ id: "b", label: "B", divergence: 0.8 }),
+    topic({ id: "c", label: "C", divergence: 0.9 }),
+  ];
+  const reddit = improvisationsFor(
+    {
+      topics: bubbles,
+      updatedAt: "2026-08-26T12:00:00.000Z",
+      sources: { x: true, reddit: false, hn: true, public: true },
+      degraded: ["reddit 403"],
+    },
+    [],
+  );
+  assert.ok(reddit.some((i) => /Reddit fallback/i.test(i.title) && i.priority === "P0"));
+  assert.ok(reddit.some((i) => i.title === "Platform-native campaign studio"));
+
+  const thinBriefs = bubbles.map((t) => ({
+    topicId: t.id,
+    whyTrending: "",
+    confidence: 0.2,
+    category: "culture" as const,
+    artifacts: [],
+    audiences: [],
+    campaign: { angle: "", forCompetitors: "", risk: "low" as const, timing: "rising" as const, hook: "" },
+    causation: {
+      topicId: t.id,
+      firstAt: null,
+      firstPlatform: null,
+      lagHours: null,
+      peakAt: null,
+      drivers: [],
+      thin: true,
+    },
+    sentiment: {
+      topicId: t.id,
+      lean: "thin" as const,
+      overall: { pos: 0, neg: 0, risk: 0, n: 0 },
+      byPlatform: {},
+      drivers: [],
+      quotes: [],
+      hits: [],
+      thin: true,
+    },
+  }));
+  const thin = improvisationsFor(
+    {
+      topics: bubbles,
+      updatedAt: "2026-08-26T12:00:00.000Z",
+      sources: { x: true, reddit: true, hn: true, public: true },
+      degraded: [],
+    },
+    thinBriefs,
+  );
+  assert.ok(thin.some((i) => /hourly snapshots/i.test(i.title)));
+});
+
+test("boostTopic attaches measured predictions and boostTrends names a plugged footprint", () => {
+  const camry = topic({
+    id: "camry",
+    label: "Camry",
+    velocity: "peaking",
+    platforms: {
+      x: { score: 40, posts: [post("Camry hybrid thread")] },
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: emptySlice(),
+    },
+  });
+  const brief = boostTopic(camry);
+  assert.equal(brief.category, "markets");
+  assert.ok(brief.predictions);
+  assert.match(brief.predictions!.summary.headline, /peak/i);
+  assert.equal(brief.predictions!.peakTime.currentPhase, "at-peak");
+  assert.equal(brief.sentiment.topicId, "camry");
+
+  const boosted = boostTrends({
+    topics: [camry],
+    updatedAt: "2026-08-26T12:00:00.000Z",
+    sources: { x: true, reddit: false, hn: false, public: false },
+    degraded: [],
+    plugged: "Camry",
+    query: {
+      raw: "Camry",
+      kind: "product",
+      category: "markets",
+      aliases: ["Toyota Camry"],
+      search: "Camry",
+      match: "exact",
+      hitCount: 1,
+      floor: "Exact print for Camry.",
+    },
+  });
+  assert.match(boosted.summary, /Camry/);
+  assert.match(boosted.summary, /1 live prints/);
+  assert.equal(boosted.briefs.length, 1);
+  assert.equal(boosted.sourceUpdatedAt, "2026-08-26T12:00:00.000Z");
 });
