@@ -119,3 +119,21 @@ test("generatePredictionSummary stays recap-only after peak", () => {
   const peaked = generatePredictionSummary(topic("peaking", 0.8, { hn: 80 }));
   assert.match(peaked.headline, /peak/i);
 });
+
+test("generatePredictionSummary abstains without a velocity signal", () => {
+  const unknown = generatePredictionSummary({
+    ...topic("rising", 0.4, { hn: 10 }),
+    velocity: "stable" as Topic["velocity"],
+  });
+  assert.match(unknown.headline, /Monitoring for signals/);
+  assert.match(unknown.nextAction, /Insufficient data/);
+  assert.equal(unknown.confidence, 0.3);
+});
+
+test("detectRiskClustering with no titled receipts stays low and does not invent a ratio", () => {
+  const empty = detectRiskClustering(topic("peaking", 0.4, { public: 10 }), sentiment(0, 0, 0));
+  assert.equal(empty.level, "low");
+  assert.equal(empty.riskRatio, 0);
+  assert.equal(empty.clustering, false);
+  assert.ok(empty.recommendations[0]?.includes("normal"));
+});

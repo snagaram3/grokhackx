@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CITIES, geoAgent, tvCountry, weatherSpots, WORLD_REDDIT, youtubeRegions } from "./geo";
+import { CITIES, geoAgent, parseCity, tvCountry, weatherSpots, WORLD_REDDIT, youtubeRegions } from "./geo";
+
+test("parseCity leftover aliases stay on World or the matching city id", () => {
+  assert.equal(parseCity("world"), "all");
+  assert.equal(parseCity("global"), "all");
+  assert.equal(parseCity("worldwide"), "all");
+  assert.equal(parseCity("mexico city"), "mexicocity");
+  assert.equal(parseCity("new york"), "nyc");
+});
 
 test("geoAgent keeps the world tape and parks a city sub beside it", () => {
   const world = geoAgent("all");
