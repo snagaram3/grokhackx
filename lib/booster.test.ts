@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ageTranslations,
+  boostTrends,
   campaignMove,
   captureArtifacts,
   improvisationsFor,
@@ -184,6 +185,59 @@ test("topicRisk and kids lens stay conservative", () => {
   assert.ok(kids);
   assert.match(kids!.takeaway, /parent/i);
   assert.match(kids!.takeaway, /QR/i);
+});
+
+test("whyTrending rising multi-platform heat is spread, not a single-source bubble", () => {
+  const spread = topic({
+    id: "camry",
+    label: "Camry",
+    velocity: "rising",
+    divergence: 0.4,
+    platforms: {
+      x: { score: 20, posts: [post("Camry hybrid")] },
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: emptySlice(),
+    },
+  });
+  const why = whyTrending(spread, []);
+  assert.match(why.why, /Rising and spreading/);
+  assert.match(why.why, /Heat is spread across sources/);
+});
+
+test("campaignMove peaking without a bubble sells the job and stays medium risk", () => {
+  const peak = campaignMove(topic({ id: "camry", label: "Camry", velocity: "peaking", divergence: 0.2 }), []);
+  assert.equal(peak.angle, "Sell the job underneath");
+  assert.equal(peak.risk, "medium");
+  assert.equal(peak.timing, "peaking");
+});
+
+test("boostTrends unplugged summary uses the lead hook, not a plugged phrase", () => {
+  const payload: TrendsPayload = {
+    topics: [
+      topic({
+        id: "camry",
+        label: "Camry",
+        velocity: "rising",
+        divergence: 0.4,
+        platforms: {
+          x: { score: 20, posts: [post("Camry hybrid")] },
+          reddit: emptySlice(),
+          hn: emptySlice(),
+          public: emptySlice(),
+        },
+      }),
+    ],
+    updatedAt: "2026-08-26T12:00:00.000Z",
+    sources: { x: true, reddit: true, hn: true, public: true },
+    degraded: [],
+  };
+  const boosted = boostTrends(payload);
+  assert.match(boosted.summary, /Camry/);
+  assert.match(boosted.summary, /risk/);
+  assert.equal(boosted.briefs.length, 1);
+  assert.ok(boosted.briefs[0]?.predictions);
+  assert.equal(/“Camry” footprint/.test(boosted.summary), false);
 });
 
 test("improvisationsFor ranks ingest gaps as P0 and never invents a ticker overlay", () => {

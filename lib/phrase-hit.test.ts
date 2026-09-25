@@ -47,6 +47,43 @@ test("inferQueryIntent classifies ticker, hashtag, campaign, product, and recall
   assert.equal(generic.category, "culture");
 });
 
+test("inferQueryIntent leftover vehicles, events, and places keep desk routing stable", () => {
+  const product = (raw: string, alias: string | null, category: "markets" | "tech" = "markets") => {
+    const intent = inferQueryIntent(raw);
+    assert.equal(intent.kind, "product", raw);
+    assert.equal(intent.category, category, raw);
+    if (alias) assert.ok(intent.aliases.some((a) => a.toLowerCase() === alias), raw);
+  };
+  product("Accord", "honda accord");
+  product("Corolla", "toyota corolla");
+  product("RAV4", "toyota rav4");
+  product("Silverado", "chevy silverado");
+  product("Model Y", "tesla model y");
+  product("Model 3", "tesla model 3");
+  product("Rivian", "rivian r1t");
+  product("Lucid", "lucid air");
+  product("BMW", null);
+  product("Honda", null);
+  product("Toyota", null);
+  product("Ford", null);
+
+  for (const raw of ["World Cup", "F1", "grand opening", "test drive", "premiere"]) {
+    const event = inferQueryIntent(raw);
+    assert.equal(event.kind, "event", raw);
+    assert.equal(event.category, "campaigns", raw);
+  }
+
+  for (const raw of ["Tokyo", "NYC", "São Paulo", "Mexico City", "San Francisco"]) {
+    const place = inferQueryIntent(raw);
+    assert.equal(place.kind, "place", raw);
+    assert.equal(place.category, "news", raw);
+  }
+
+  const lawsuit = inferQueryIntent("Camry lawsuit");
+  assert.equal(lawsuit.kind, "product");
+  assert.equal(lawsuit.category, "markets");
+});
+
 test("searchQuery quotes multi-word aliases and floorLine refuses invented reach", () => {
   assert.equal(searchQuery({ raw: "Camry", aliases: [] }), "Camry");
   assert.ok(searchQuery({ raw: "Camry", aliases: ["Toyota Camry"] }).includes('"Toyota Camry"'));

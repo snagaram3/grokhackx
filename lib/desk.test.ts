@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildCausation, buildTimeseries } from "./desk";
-import type { Post, Topic } from "./types";
+import { buildCausation, buildTimeseries, classifyTopic } from "./desk";
+import type { CategoryId, Post, Topic } from "./types";
 
 function emptySlice() {
   return { score: 0, posts: [] as Post[] };
@@ -75,6 +75,52 @@ test("buildCausation treats recall language as a risk driver, not a slogan", () 
   assert.ok(report.drivers.some((d) => d.id === "risk" && /recall/.test(d.label)));
   assert.ok(report.drivers.some((d) => d.id === "hashtags"));
   assert.ok(report.drivers.some((d) => d.id === "velocity" && d.label === "Cooling"));
+});
+
+test("classifyTopic leftover keyword-only titles still file the desk without a sourceApi", () => {
+  const notice = (title: string) =>
+    topic([post("public", title, "2026-08-26T12:00:00.000Z")], { label: "Advisory notice" });
+  const rows: [string, CategoryId][] = [
+    ["Crypto briefing", "markets"],
+    ["Inflation print", "markets"],
+    ["IPO filing", "markets"],
+    ["Stock update", "markets"],
+    ["Forex session", "markets"],
+    ["Tornado watch", "weather"],
+    ["Flood warning", "weather"],
+    ["Storm advisory", "weather"],
+    ["Heatwave alert", "weather"],
+    ["Kernel patch", "tech"],
+    ["GPU shortage", "tech"],
+    ["LLM release", "tech"],
+    ["NHL standings", "sports"],
+    ["Soccer fixture", "sports"],
+    ["Outbreak notice", "health"],
+    ["Hacked account", "security"],
+    ["Vulnerability note", "security"],
+    ["Breaking bulletin", "news"],
+  ];
+  for (const [title, category] of rows) {
+    assert.equal(classifyTopic(notice(title)), category, title);
+  }
+});
+
+test("buildCausation leftover controversy words stay risk drivers, not slogans", () => {
+  const risk = (title: string, word: string) => {
+    const report = buildCausation(
+      topic([
+        post("public", title, "2026-08-26T12:00:00.000Z"),
+        post("hn", "Camry hybrid thread", "2026-08-26T13:00:00.000Z"),
+      ]),
+    );
+    assert.ok(
+      report.drivers.some((d) => d.id === "risk" && d.label === `Risk word · ${word}`),
+      title,
+    );
+  };
+  risk("Product ban announced", "ban");
+  risk("Airline app outage overnight", "outage");
+  risk("City protest continues", "protest");
 });
 
 test("buildTimeseries ignores invalid dates and buckets dated receipts", () => {

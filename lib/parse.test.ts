@@ -25,6 +25,9 @@ test("vehicleQuery maps Camry aliases and years, never camera", () => {
   assert.deepEqual(vehicleQuery("2024 Honda Civic"), { make: "honda", model: "civic", year: "2024" });
   assert.equal(vehicleQuery("camera sensor"), null);
   assert.equal(vehicleQuery("   "), null);
+  assert.deepEqual(vehicleQuery("Corolla"), { make: "toyota", model: "corolla" });
+  assert.deepEqual(vehicleQuery("Accord"), { make: "honda", model: "accord" });
+  assert.deepEqual(vehicleQuery("Mustang"), { make: "ford", model: "mustang" });
 });
 
 test("QR image URLs decode data/text/chl and ignore ordinary pages", () => {

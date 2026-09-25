@@ -81,3 +81,33 @@ test("buildEventTicks skips public-only origin, dup URLs, bad dates, and honors 
   );
   assert.equal(buildEventTicks([many], 8).length, 8);
 });
+
+test("buildEventTicks treats exact 24h as in-window and a prior GDELT print as negative lag", () => {
+  const social = "2026-08-26T12:00:00.000Z";
+  const ticks = buildEventTicks([
+    topicFrom([
+      post("hn", "Camry hybrid thread", social),
+      post("public", "same-hour wire", "2026-08-27T12:00:00.000Z", {
+        sourceApi: "GDELT",
+        url: "https://gdelt.test/24h",
+      }),
+      post("public", "late wire", "2026-08-27T12:36:00.000Z", {
+        sourceApi: "GDELT",
+        url: "https://gdelt.test/246",
+      }),
+      post("public", "earlier wire", "2026-08-26T10:00:00.000Z", {
+        sourceApi: "GDELT",
+        url: "https://gdelt.test/prior",
+      }),
+    ]),
+  ]);
+  const exact = ticks.find((t) => t.url.endsWith("/24h"));
+  const late = ticks.find((t) => t.url.endsWith("/246"));
+  const prior = ticks.find((t) => t.url.endsWith("/prior"));
+  assert.equal(exact?.lagHours, 24);
+  assert.equal(exact?.inWindow, true);
+  assert.equal(late?.lagHours, 24.6);
+  assert.equal(late?.inWindow, false);
+  assert.equal(prior?.lagHours, -2);
+  assert.equal(prior?.inWindow, false);
+});
