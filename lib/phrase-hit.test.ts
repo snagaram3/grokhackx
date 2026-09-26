@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { parseCity } from "./geo";
 import { tokenHits } from "./phrase-hit";
 import { floorLine, inferQueryIntent, searchQuery, titleHits, titleScore } from "./query";
 
@@ -45,6 +46,58 @@ test("inferQueryIntent classifies ticker, hashtag, campaign, product, and recall
   const generic = inferQueryIntent("blorptastic");
   assert.equal(generic.kind, "generic");
   assert.equal(generic.category, "culture");
+});
+
+test("inferQueryIntent leftover events beat product and leftover places stay news", () => {
+  for (const raw of ["launch", "keynote", "campaign", "drop"]) {
+    const event = inferQueryIntent(raw);
+    assert.equal(event.kind, "event", raw);
+    assert.equal(event.category, "campaigns", raw);
+  }
+  for (const raw of ["Camry launch", "Camry drop", "Camry campaign"]) {
+    const event = inferQueryIntent(raw);
+    assert.equal(event.kind, "event", raw);
+    assert.equal(event.category, "campaigns", raw);
+  }
+
+  const short = inferQueryIntent("https://qrs.ly/heat");
+  assert.equal(short.kind, "campaign");
+  assert.equal(short.category, "campaigns");
+
+  // Locked: EVENT_WORD "f1" is a substring of "f150", so the Ask box is event/campaigns
+  // (hyphenated F-150 stays product). Do not "fix" to markets.
+  const f150 = inferQueryIntent("f150");
+  assert.equal(f150.kind, "event");
+  assert.equal(f150.category, "campaigns");
+  assert.ok(f150.aliases.some((a) => a.toLowerCase() === "f1"));
+
+  for (const raw of [
+    "Mumbai",
+    "Lagos",
+    "Sydney",
+    "Cairo",
+    "Berlin",
+    "Singapore",
+    "Seoul",
+    "Nairobi",
+    "Jakarta",
+    "Toronto",
+    "Dubai",
+    "Paris",
+    "Austin",
+  ]) {
+    const place = inferQueryIntent(raw);
+    assert.equal(place.kind, "place", raw);
+    assert.equal(place.category, "news", raw);
+  }
+
+  // Locked: country-sub needles are Ask-box places, but parseCity stays World.
+  for (const raw of ["Nigeria", "Egypt", "Korea", "Kenya", "Indonesia", "Mexico", "Brasil"]) {
+    const place = inferQueryIntent(raw);
+    assert.equal(place.kind, "place", raw);
+    assert.equal(place.category, "news", raw);
+    assert.equal(parseCity(raw), "all", raw);
+  }
 });
 
 test("searchQuery quotes multi-word aliases and floorLine refuses invented reach", () => {

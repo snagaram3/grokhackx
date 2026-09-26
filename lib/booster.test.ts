@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ageTranslations,
+  boostTrends,
   campaignMove,
   captureArtifacts,
   improvisationsFor,
@@ -71,6 +72,31 @@ test("captureArtifacts keeps hashtags, tickers, QR payloads, and ordinary URLs a
   assert.ok(byKind("url").some((a) => a.value.includes("wikipedia.org")));
   assert.equal(
     byKind("url").some((a) => a.value.includes("chart.googleapis.com")),
+    false,
+  );
+});
+
+test("captureArtifacts leftover short links count as QR campaign codes, not ordinary URLs", () => {
+  const short = topic({
+    id: "deal",
+    label: "Camry deal",
+    platforms: {
+      x: { score: 12, posts: [post("Lot special https://bit.ly/camryfit")] },
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: {
+        score: 8,
+        posts: [post("Mirror https://t.co/camryfit", { platform: "public", url: "https://public.test/tco" })],
+      },
+    },
+  });
+  const arts = captureArtifacts(short);
+  const qrs = arts.filter((a) => a.kind === "qr");
+  const urls = arts.filter((a) => a.kind === "url");
+  assert.ok(qrs.some((a) => /bit\.ly\/camryfit/i.test(a.value)));
+  assert.ok(qrs.some((a) => /t\.co\/camryfit/i.test(a.value)));
+  assert.equal(
+    urls.some((a) => /bit\.ly|t\.co/i.test(a.value)),
     false,
   );
 });
@@ -158,6 +184,127 @@ test("campaignMove recaps fading waves and flags controversy as high risk", () =
   );
   assert.equal(recall.risk, "high");
   assert.equal(recall.angle, "Sell the job underneath");
+});
+
+test("campaignMove leftover fading controversy stays high-risk recap, not a launch", () => {
+  const hot = [{ kind: "hashtag" as const, value: "#TravelFail", mentions: 2, platforms: ["x" as const] }];
+  const clean = campaignMove(topic({ id: "old", label: "Camry", velocity: "fading" }), hot);
+  assert.equal(clean.risk, "medium");
+  assert.equal(clean.angle, "Recap, don't launch");
+
+  const risky = campaignMove(
+    topic({
+      id: "outage",
+      label: "Airline app outage",
+      velocity: "fading",
+      platforms: {
+        x: { score: 20, posts: [post("app outage overnight")] },
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: emptySlice(),
+      },
+    }),
+    hot,
+  );
+  assert.equal(risky.risk, "high");
+  assert.equal(risky.angle, "Recap, don't launch");
+  assert.equal(risky.timing, "fading");
+});
+
+test("boostTrends empty tape uses the query floor and never invents a lead hook", () => {
+  const empty: TrendsPayload = {
+    topics: [],
+    updatedAt: "2026-08-26T12:00:00.000Z",
+    sources: { x: true, reddit: true, hn: true, public: true },
+    degraded: [],
+    query: {
+      raw: "Camry",
+      kind: "product",
+      category: "markets",
+      aliases: [],
+      search: "Camry",
+      match: "neighbor",
+      hitCount: 0,
+      floor: "No exact print for Camry.",
+    },
+  };
+  assert.equal(boostTrends(empty).summary, "No exact print for Camry.");
+  assert.deepEqual(boostTrends(empty).briefs, []);
+
+  const bare: TrendsPayload = {
+    topics: [],
+    updatedAt: "2026-08-26T12:00:00.000Z",
+    sources: { x: true, reddit: true, hn: true, public: true },
+    degraded: [],
+  };
+  assert.equal(boostTrends(bare).summary, "Look up a phrase to fill the desk.");
+});
+
+test("whyTrending leftover tags and peak hour stay on the receipt tape", () => {
+  const tagged = topic({
+    id: "camry",
+    label: "Camry",
+    velocity: "rising",
+    divergence: 0.4,
+    peakHourCT: "2 PM",
+    platforms: {
+      x: { score: 20, posts: [post("Camry hybrid #Camry")] },
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: emptySlice(),
+    },
+  });
+  const why = whyTrending(tagged, captureArtifacts(tagged));
+  assert.match(why.why, /In play: #Camry/);
+  assert.match(why.why, /Usual peak 2 PM CT/);
+});
+
+test("topicRisk leftover controversy words stay high", () => {
+  assert.equal(
+    topicRisk(
+      topic({
+        id: "scam",
+        label: "Token",
+        platforms: {
+          x: { score: 10, posts: [post("token scam reported")] },
+          reddit: emptySlice(),
+          hn: emptySlice(),
+          public: emptySlice(),
+        },
+      }),
+    ),
+    "high",
+  );
+  assert.equal(
+    topicRisk(
+      topic({
+        id: "layoff",
+        label: "Factory",
+        platforms: {
+          x: { score: 10, posts: [post("factory layoff announced")] },
+          reddit: emptySlice(),
+          hn: emptySlice(),
+          public: emptySlice(),
+        },
+      }),
+    ),
+    "high",
+  );
+  assert.equal(
+    topicRisk(
+      topic({
+        id: "boycott",
+        label: "Brand",
+        platforms: {
+          x: { score: 10, posts: [post("brand boycott spreads")] },
+          reddit: emptySlice(),
+          hn: emptySlice(),
+          public: emptySlice(),
+        },
+      }),
+    ),
+    "high",
+  );
 });
 
 test("topicRisk and kids lens stay conservative", () => {

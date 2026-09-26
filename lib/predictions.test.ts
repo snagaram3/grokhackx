@@ -119,3 +119,34 @@ test("generatePredictionSummary stays recap-only after peak", () => {
   const peaked = generatePredictionSummary(topic("peaking", 0.8, { hn: 80 }));
   assert.match(peaked.headline, /peak/i);
 });
+
+test("predictCampaignArc leftover bubbles rise and fade faster than multi-platform prints", () => {
+  const bubbleRise = predictCampaignArc(topic("rising", 0.7, { x: 40 }));
+  const spreadRise = predictCampaignArc(topic("rising", 0.3, { x: 20, reddit: 20 }));
+  assert.equal(bubbleRise.arcCurve[0]?.durationHours, 24);
+  assert.equal(spreadRise.arcCurve[0]?.durationHours, 48);
+  assert.equal(spreadRise.arcCurve[1]?.durationHours, 72);
+
+  const bubbleFade = predictCampaignArc(topic("fading", 0.7, { x: 20 }));
+  const spreadFade = predictCampaignArc(topic("fading", 0.3, { x: 20, reddit: 20 }));
+  assert.equal(bubbleFade.arcCurve[0]?.durationHours, 72);
+  assert.equal(spreadFade.arcCurve[0]?.durationHours, 120);
+});
+
+test("generatePredictionSummary leftover at-peak without spread stays amplify-now, not a platform hop", () => {
+  const peaked = generatePredictionSummary(topic("peaking", 0.8, { hn: 80 }));
+  assert.equal(peaked.headline, "At peak velocity now");
+  assert.match(peaked.nextAction, /Cheap to amplify/);
+});
+
+test("detectRiskClustering leftover clustering-at-0.25 is high and neg-ratio-only is medium", () => {
+  const clustered = detectRiskClustering(topic("rising", 0.4, { public: 10 }), sentiment(4, 0, 16));
+  assert.equal(clustered.clustering, true);
+  assert.equal(clustered.riskRatio, 0.25);
+  assert.equal(clustered.level, "high");
+
+  const negOnly = detectRiskClustering(topic("peaking", 0.4, { public: 10 }), sentiment(0, 4, 10));
+  assert.equal(negOnly.clustering, false);
+  assert.equal(negOnly.riskRatio, 0);
+  assert.equal(negOnly.level, "medium");
+});
