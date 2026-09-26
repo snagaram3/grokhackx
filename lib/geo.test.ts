@@ -33,3 +33,41 @@ test("weather, YouTube, and TV routing stay city-scoped without geocoding", () =
   assert.equal(tvCountry("london"), "GB");
   assert.equal(tvCountry("saopaulo"), "BR");
 });
+
+test("geoAgent leftover cities park their sub beside the world tape", () => {
+  const austin = geoAgent("Austin");
+  assert.equal(austin.city, "austin");
+  assert.equal(austin.label, "Austin");
+  assert.ok(austin.redditSubs.includes("Austin"));
+  assert.ok(WORLD_REDDIT.every((sub) => austin.redditSubs.includes(sub)));
+  assert.equal(austin.log, "geo: austin r/Austin+world");
+
+  const paris = geoAgent("Paris");
+  assert.equal(paris.city, "paris");
+  assert.ok(paris.redditSubs.includes("paris"));
+  assert.equal(paris.log, "geo: paris r/paris+world");
+
+  const mumbai = geoAgent("Mumbai");
+  assert.equal(mumbai.city, "mumbai");
+  assert.ok(mumbai.redditSubs.includes("mumbai"));
+
+  const lagos = geoAgent("Lagos");
+  assert.equal(lagos.city, "lagos");
+  assert.ok(lagos.redditSubs.includes("Nigeria"));
+});
+
+test("YouTube and TV leftover city codes stay scoped without geocoding", () => {
+  assert.deepEqual(youtubeRegions("austin"), ["US"]);
+  assert.deepEqual(youtubeRegions("paris"), ["FR"]);
+  assert.deepEqual(youtubeRegions("mumbai"), ["IN"]);
+  assert.deepEqual(youtubeRegions("lagos"), ["NG"]);
+  assert.deepEqual(youtubeRegions("singapore"), ["SG"]);
+  assert.deepEqual(youtubeRegions("dubai"), ["AE"]);
+  assert.equal(tvCountry("austin"), "US");
+  assert.equal(tvCountry("paris"), "FR");
+  assert.equal(tvCountry("mumbai"), "IN");
+  assert.equal(tvCountry("lagos"), "NG");
+  assert.equal(weatherSpots("austin").length, 1);
+  assert.equal(weatherSpots("austin")[0]?.label, "Austin");
+  assert.equal(weatherSpots("paris")[0]?.label, "Paris");
+});

@@ -27,6 +27,50 @@ test("vehicleQuery maps Camry aliases and years, never camera", () => {
   assert.equal(vehicleQuery("   "), null);
 });
 
+test("vehicleQuery leftover makes stay make-as-model and f150 aliases to F-150", () => {
+  assert.deepEqual(vehicleQuery("f150"), { make: "ford", model: "f-150" });
+  assert.deepEqual(vehicleQuery("2024 BMW"), { make: "bmw", model: "bmw", year: "2024" });
+  for (const make of [
+    "chevrolet",
+    "bmw",
+    "hyundai",
+    "kia",
+    "nissan",
+    "subaru",
+    "volkswagen",
+    "audi",
+    "mazda",
+    "jeep",
+    "lexus",
+    "volvo",
+    "gmc",
+    "ram",
+  ]) {
+    assert.deepEqual(vehicleQuery(make), { make, model: make }, make);
+  }
+});
+
+test("parseCity leftover city keys stay on the city id, not World", () => {
+  const rows: [string, string][] = [
+    ["Mumbai", "mumbai"],
+    ["Lagos", "lagos"],
+    ["Sydney", "sydney"],
+    ["Cairo", "cairo"],
+    ["Berlin", "berlin"],
+    ["Singapore", "singapore"],
+    ["Seoul", "seoul"],
+    ["Nairobi", "nairobi"],
+    ["Jakarta", "jakarta"],
+    ["Toronto", "toronto"],
+    ["Dubai", "dubai"],
+    ["Paris", "paris"],
+    ["Austin", "austin"],
+  ];
+  for (const [raw, id] of rows) {
+    assert.equal(parseCity(raw), id, raw);
+  }
+});
+
 test("QR image URLs decode data/text/chl and ignore ordinary pages", () => {
   assert.equal(
     payloadFromQrImageUrl("https://chart.googleapis.com/chart?cht=qr&chl=https://camry.example/fit"),

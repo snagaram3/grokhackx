@@ -81,3 +81,32 @@ test("buildEventTicks skips public-only origin, dup URLs, bad dates, and honors 
   );
   assert.equal(buildEventTicks([many], 8).length, 8);
 });
+
+test("eventKindOf leftover NWS and GDELT aliases still classify, and NWS honors the 24h window", () => {
+  assert.equal(eventKindOf("National Weather Service"), "nws");
+  assert.equal(eventKindOf("national weather alert"), "nws");
+  assert.equal(eventKindOf("GDELT Project"), "gdelt");
+
+  const social = "2026-08-26T12:00:00.000Z";
+  const ticks = buildEventTicks([
+    topicFrom([
+      post("hn", "Camry hybrid thread", social),
+      post("public", "Heat advisory", "2026-08-26T15:00:00.000Z", {
+        sourceApi: "National Weather Service",
+        url: "https://api.weather.gov/alerts/3h",
+      }),
+      post("public", "Late advisory", "2026-08-27T16:00:00.000Z", {
+        sourceApi: "National Weather Service",
+        url: "https://api.weather.gov/alerts/28h",
+      }),
+    ]),
+  ]);
+  const inWin = ticks.find((t) => t.url.endsWith("/3h"));
+  const late = ticks.find((t) => t.url.endsWith("/28h"));
+  assert.equal(inWin?.kind, "nws");
+  assert.equal(inWin?.lagHours, 3);
+  assert.equal(inWin?.inWindow, true);
+  assert.equal(late?.kind, "nws");
+  assert.equal(late?.lagHours, 28);
+  assert.equal(late?.inWindow, false);
+});
