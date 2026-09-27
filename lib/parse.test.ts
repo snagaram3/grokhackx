@@ -27,6 +27,16 @@ test("vehicleQuery maps Camry aliases and years, never camera", () => {
   assert.equal(vehicleQuery("   "), null);
 });
 
+test("vehicleQuery leftover makes keep a leftover model token and reject Silverado alone", () => {
+  assert.deepEqual(vehicleQuery("Hyundai Ioniq"), { make: "hyundai", model: "ioniq" });
+  assert.deepEqual(vehicleQuery("Kia EV6"), { make: "kia", model: "ev6" });
+  assert.deepEqual(vehicleQuery("Nissan Leaf"), { make: "nissan", model: "leaf" });
+  assert.deepEqual(vehicleQuery("Jeep Wrangler"), { make: "jeep", model: "wrangler" });
+  assert.deepEqual(vehicleQuery("Chevrolet Silverado"), { make: "chevrolet", model: "silverado" });
+  assert.equal(vehicleQuery("Silverado"), null);
+  assert.deepEqual(vehicleQuery("2023 Honda"), { make: "honda", model: "honda", year: "2023" });
+});
+
 test("QR image URLs decode data/text/chl and ignore ordinary pages", () => {
   assert.equal(
     payloadFromQrImageUrl("https://chart.googleapis.com/chart?cht=qr&chl=https://camry.example/fit"),
