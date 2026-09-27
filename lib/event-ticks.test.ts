@@ -53,6 +53,18 @@ test("eventKindOf maps weather.gov and NOAA aliases and ignores empty names", ()
   assert.equal(eventKindOf("Wikipedia"), null);
 });
 
+test("buildEventTicks leftover reddit origin keeps a 5h NWS lag in-window", () => {
+  const tape = topicFrom([
+    post("reddit", "Camry thread", "2026-08-26T12:00:00.000Z"),
+    post("public", "Heat advisory", "2026-08-26T17:00:00.000Z", { sourceApi: "NWS" }),
+  ]);
+  const ticks = buildEventTicks([tape]);
+  assert.equal(ticks.length, 1);
+  assert.equal(ticks[0].kind, "nws");
+  assert.equal(ticks[0].lagHours, 5);
+  assert.equal(ticks[0].inWindow, true);
+});
+
 test("buildEventTicks skips public-only origin, dup URLs, bad dates, and honors the cap", () => {
   const onlyEvents = topicFrom([
     post("public", "Camry in world news", "2026-08-26T15:00:00.000Z", {

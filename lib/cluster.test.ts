@@ -41,6 +41,25 @@ test("plugTopicFromPosts keeps Camry exact and does not treat camera as a hit", 
   assert.equal(near[0].platforms.public.posts.length, 0);
 });
 
+test("neighborTopics leftover tape is capped at 8 and empty query still matches neighbors", () => {
+  const row = (id: string, label: string): Topic => ({
+    id,
+    label,
+    velocity: "rising",
+    divergence: 0.5,
+    tickers: [],
+    platforms: { x: emptySlice(), reddit: emptySlice(), hn: emptySlice(), public: emptySlice() },
+  });
+  const tape = Array.from({ length: 10 }, (_, i) => row(`camry-${i}`, "Camry hybrid"));
+  const hits = neighborTopics("Camry", [], tape);
+  assert.equal(hits.length, 8);
+  assert.ok(hits.every((t) => t.match === "neighbor"));
+
+  const empty = plugTopicFromPosts("   ", []);
+  assert.equal(empty[0].label, "topic");
+  assert.equal(empty[0].match, "neighbor");
+});
+
 test("neighborTopics only returns tape prints that share the query tokens", () => {
   const camry: Topic = {
     id: "camry",

@@ -55,6 +55,31 @@ test("predictPeakTime maps velocity to phase without needing a clock for peaked/
   assert.ok(bubble.hoursUntilPeak < spread.hoursUntilPeak);
 });
 
+test("predictPeakTime leftover rising hours shrink with score and bubble divergence", () => {
+  const hot = predictPeakTime(topic("rising", 0.2, { hn: 90 }));
+  const cold = predictPeakTime(topic("rising", 0.2, { hn: 20 }));
+  const bubble = predictPeakTime(topic("rising", 0.8, { hn: 90 }));
+  assert.equal(hot.hoursUntilPeak, 9);
+  assert.equal(hot.confidence, 0.75);
+  assert.equal(cold.hoursUntilPeak, 21);
+  assert.equal(cold.confidence, 0.6);
+  assert.equal(bubble.hoursUntilPeak, 5);
+});
+
+test("predictPlatformSpread leftover reddit boosts at div 0.4 and fading low-score clamps", () => {
+  const mid = predictPlatformSpread(topic("rising", 0.4, { hn: 90 }));
+  const reddit = mid.willSpreadTo.find((p) => p.platform === "reddit");
+  const x = mid.willSpreadTo.find((p) => p.platform === "x");
+  assert.ok(reddit && x);
+  assert.ok(reddit.probability > x.probability);
+  assert.equal(reddit.probability, 0.7);
+  assert.equal(reddit.estimatedHours, 5);
+
+  const thinFade = predictPlatformSpread(topic("fading", 0.5, { hn: 20 }));
+  assert.ok(thinFade.willSpreadTo.every((p) => p.probability === 0.05));
+  assert.ok(thinFade.willSpreadTo.every((p) => p.estimatedHours === null));
+});
+
 test("predictPlatformSpread keeps probabilities in (0,1] and ranks inactive platforms", () => {
   const rising = predictPlatformSpread(topic("rising", 0.2, { hn: 90 }));
   assert.ok(rising.willSpreadTo.length >= 1);
@@ -110,6 +135,17 @@ test("detectRiskClustering flags clustered risk words and stays low on clean tit
   const calm = detectRiskClustering(topic("peaking", 0.4, { public: 10 }), sentiment(0, 0, 10));
   assert.equal(calm.level, "low");
   assert.ok(calm.recommendations[0]?.includes("normal"));
+});
+
+test("detectRiskClustering leftover 0.2 risk ratio is medium and 0.1 stays low", () => {
+  const mid = detectRiskClustering(topic("rising", 0.4, { public: 10 }), sentiment(2, 1, 10));
+  assert.equal(mid.level, "medium");
+  assert.equal(mid.clustering, false);
+  assert.equal(mid.riskRatio, 0.2);
+
+  const calm = detectRiskClustering(topic("rising", 0.4, { public: 10 }), sentiment(1, 3, 10));
+  assert.equal(calm.level, "low");
+  assert.equal(calm.clustering, false);
 });
 
 test("generatePredictionSummary stays recap-only after peak", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildCausation, buildTimeseries } from "./desk";
+import { buildCausation, buildTimeseries, classifyTopic } from "./desk";
 import type { Post, Topic } from "./types";
 
 function emptySlice() {
@@ -75,6 +75,30 @@ test("buildCausation treats recall language as a risk driver, not a slogan", () 
   assert.ok(report.drivers.some((d) => d.id === "risk" && /recall/.test(d.label)));
   assert.ok(report.drivers.some((d) => d.id === "hashtags"));
   assert.ok(report.drivers.some((d) => d.id === "velocity" && d.label === "Cooling"));
+});
+
+test("classifyTopic leftover market keywords file Markets without a sourceApi", () => {
+  const keyword = (title: string): Topic =>
+    topic([post("public", title, "2026-08-26T12:00:00.000Z")], { label: "Advisory notice" });
+  assert.equal(classifyTopic(keyword("Advisory notice toyota")), "markets");
+  assert.equal(classifyTopic(keyword("Advisory notice honda")), "markets");
+  assert.equal(classifyTopic(keyword("Advisory notice ford")), "markets");
+  assert.equal(classifyTopic(keyword("Advisory notice civic")), "markets");
+  assert.equal(classifyTopic(keyword("Advisory notice tesla")), "markets");
+  assert.equal(classifyTopic(keyword("Advisory notice mustang")), "markets");
+});
+
+test("buildCausation leftover first-print weight is heavier on a high-divergence bubble", () => {
+  const posts = [
+    post("hn", "Camry hybrid thread", "2026-08-26T12:00:00.000Z", 12),
+    post("public", "Camry in world news", "2026-08-26T15:00:00.000Z", 12),
+  ];
+  const bubble = buildCausation(topic(posts, { divergence: 0.7 }));
+  const spread = buildCausation(topic(posts, { divergence: 0.2 }));
+  const bubbleFirst = bubble.drivers.find((d) => d.id === "first-print");
+  const spreadFirst = spread.drivers.find((d) => d.id === "first-print");
+  assert.ok(bubbleFirst && spreadFirst);
+  assert.ok(bubbleFirst.weight > spreadFirst.weight);
 });
 
 test("buildTimeseries ignores invalid dates and buckets dated receipts", () => {

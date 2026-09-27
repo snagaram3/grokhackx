@@ -47,6 +47,28 @@ test("inferQueryIntent classifies ticker, hashtag, campaign, product, and recall
   assert.equal(generic.category, "culture");
 });
 
+test("inferQueryIntent leftover priority: ticker and event beat later catalog hits", () => {
+  const tickerEvent = inferQueryIntent("$TSLA launch");
+  assert.equal(tickerEvent.kind, "ticker");
+  assert.equal(tickerEvent.category, "markets");
+
+  const tickerCampaign = inferQueryIntent("$AAPL scan this qr");
+  assert.equal(tickerCampaign.kind, "ticker");
+  assert.equal(tickerCampaign.category, "markets");
+
+  const eventBeatsPlace = inferQueryIntent("London launch");
+  assert.equal(eventBeatsPlace.kind, "event");
+  assert.equal(eventBeatsPlace.category, "campaigns");
+
+  const productBeatsPlace = inferQueryIntent("Camry Tokyo");
+  assert.equal(productBeatsPlace.kind, "product");
+  assert.equal(productBeatsPlace.category, "markets");
+
+  const campaignBeatsTag = inferQueryIntent("utm_medium=qr #HeatWave");
+  assert.equal(campaignBeatsTag.kind, "campaign");
+  assert.equal(campaignBeatsTag.category, "campaigns");
+});
+
 test("searchQuery quotes multi-word aliases and floorLine refuses invented reach", () => {
   assert.equal(searchQuery({ raw: "Camry", aliases: [] }), "Camry");
   assert.ok(searchQuery({ raw: "Camry", aliases: ["Toyota Camry"] }).includes('"Toyota Camry"'));

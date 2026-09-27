@@ -186,6 +186,162 @@ test("topicRisk and kids lens stay conservative", () => {
   assert.match(kids!.takeaway, /QR/i);
 });
 
+test("captureArtifacts leftover short links stay QR campaign codes, not ordinary URLs", () => {
+  const shorts = topic({
+    id: "shorts",
+    label: "Camry drop",
+    platforms: {
+      x: {
+        score: 40,
+        posts: [
+          post("tiny https://tinyurl.com/camry-lot", { url: "https://x.test/status/tiny" }),
+          post("linkedin https://lnkd.in/camry", { url: "https://x.test/status/lnkd" }),
+          post("goo https://goo.gl/camry", { url: "https://x.test/status/goo" }),
+          post("owl https://ow.ly/camry", { url: "https://x.test/status/owl" }),
+        ],
+      },
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: emptySlice(),
+    },
+  });
+  const arts = captureArtifacts(shorts);
+  const urls = arts.filter((a) => a.kind === "url").map((a) => a.value);
+  const qrs = arts.filter((a) => a.kind === "qr").map((a) => a.value);
+  assert.ok(qrs.some((v) => /tinyurl\.com/i.test(v)));
+  assert.ok(qrs.some((v) => /lnkd\.in/i.test(v)));
+  assert.ok(qrs.some((v) => /goo\.gl/i.test(v)));
+  assert.ok(qrs.some((v) => /ow\.ly/i.test(v)));
+  assert.equal(urls.some((v) => /tinyurl|lnkd\.in|goo\.gl|ow\.ly/i.test(v)), false);
+});
+
+test("campaignMove leftover high-divergence controversy stays a high-risk first-source win", () => {
+  const move = campaignMove(
+    topic({
+      id: "bubble-risk",
+      label: "Camry",
+      velocity: "rising",
+      divergence: 0.7,
+      platforms: {
+        x: { score: 40, posts: [post("Camry lawsuit filed")] },
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: emptySlice(),
+      },
+    }),
+    [{ kind: "hashtag", value: "#Camry", mentions: 2, platforms: ["x"] }],
+  );
+  assert.equal(move.angle, "Win the source that's moving first");
+  assert.equal(move.risk, "high");
+});
+
+test("whyTrending leftover ordinary URLs print Traffic on the host", () => {
+  const wired = topic({
+    id: "wiki",
+    label: "Camry",
+    platforms: {
+      x: emptySlice(),
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: {
+        score: 10,
+        posts: [post("Toyota Camry", { platform: "public", url: "https://en.wikipedia.org/wiki/Toyota_Camry" })],
+      },
+    },
+  });
+  const why = whyTrending(wired, captureArtifacts(wired));
+  assert.match(why.why, /Traffic on en.wikipedia.org/);
+});
+
+test("topicRisk leftover controversy words stay high", () => {
+  const risky = (title: string) =>
+    topicRisk(
+      topic({
+        id: title,
+        label: "Camry",
+        platforms: {
+          x: { score: 10, posts: [post(title)] },
+          reddit: emptySlice(),
+          hn: emptySlice(),
+          public: emptySlice(),
+        },
+      }),
+    );
+  for (const word of [
+    "leak",
+    "crash",
+    "war",
+    "death",
+    "killed",
+    "abuse",
+    "lawsuit",
+    "ban",
+    "outage",
+    "recall",
+    "protest",
+  ]) {
+    assert.equal(risky(`Camry ${word} notice`), "high", word);
+  }
+});
+
+test("improvisationsFor leftover TikTok and Postgres rows stay ranked, and 3 hashtags skip Shorts", () => {
+  const emptyBriefs = improvisationsFor(
+    {
+      topics: [topic({ id: "camry", label: "Camry" })],
+      updatedAt: "2026-08-26T12:00:00.000Z",
+      sources: { x: true, reddit: true, hn: true, public: true },
+      degraded: [],
+    },
+    [],
+  );
+  assert.ok(emptyBriefs.some((i) => /TikTok|Shorts/i.test(i.title) && i.priority === "P0"));
+  assert.ok(emptyBriefs.some((i) => /Postgres/i.test(i.title) && i.priority === "P2"));
+
+  const tagged = improvisationsFor(
+    {
+      topics: [topic({ id: "camry", label: "Camry" })],
+      updatedAt: "2026-08-26T12:00:00.000Z",
+      sources: { x: true, reddit: true, hn: true, public: true },
+      degraded: [],
+    },
+    [
+      {
+        topicId: "camry",
+        whyTrending: "",
+        confidence: 0.4,
+        category: "markets",
+        artifacts: [
+          { kind: "hashtag", value: "#Camry", mentions: 1, platforms: ["x"] },
+          { kind: "hashtag", value: "#Toyota", mentions: 1, platforms: ["x"] },
+          { kind: "hashtag", value: "#Hybrid", mentions: 1, platforms: ["x"] },
+        ],
+        audiences: [],
+        campaign: { angle: "", forCompetitors: "", risk: "low", timing: "rising", hook: "" },
+        causation: {
+          topicId: "camry",
+          firstAt: null,
+          firstPlatform: null,
+          lagHours: null,
+          peakAt: null,
+          drivers: [],
+          thin: true,
+        },
+        sentiment: {
+          topicId: "camry",
+          lean: "thin",
+          overall: { pos: 0, neg: 0, risk: 0, n: 0 },
+          byPlatform: {},
+          drivers: [],
+          quotes: [],
+          hits: [],
+          thin: true,
+        },
+      },
+    ],
+  );
+  assert.equal(tagged.some((i) => /TikTok|Shorts/i.test(i.title)), false);
+});
+
 test("improvisationsFor ranks ingest gaps as P0 and never invents a ticker overlay", () => {
   const payload: TrendsPayload = {
     topics: [topic({ id: "camry", label: "Camry", divergence: 0.8 })],
