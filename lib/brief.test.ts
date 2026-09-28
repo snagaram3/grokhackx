@@ -113,5 +113,7 @@ test("takeawayFor and lensCaption use the campaign hook for All", () => {
   assert.equal(takeawayFor(packed, "all"), undefined);
   assert.equal(lensCaption(packed, "all"), packed.campaign.hook);
   assert.equal(takeawayFor(packed, "kids")?.label, "Family");
+  assert.equal(takeawayFor(packed, "boomer")?.label, "Family");
   assert.equal(lensCaption(undefined, "kids"), undefined);
+  assert.equal(briefFilename("a".repeat(80)), `hawkxai-brief-${"a".repeat(48)}.md`);
 });

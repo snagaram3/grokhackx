@@ -50,6 +50,15 @@ test("inferQueryIntent classifies ticker, hashtag, campaign, product, and recall
 test("searchQuery quotes multi-word aliases and floorLine refuses invented reach", () => {
   assert.equal(searchQuery({ raw: "Camry", aliases: [] }), "Camry");
   assert.ok(searchQuery({ raw: "Camry", aliases: ["Toyota Camry"] }).includes('"Toyota Camry"'));
+  const capped = searchQuery({
+    raw: "Camry",
+    aliases: ["Toyota Camry", "camry hybrid", "camry sedan", "camry le", "should-drop"],
+  });
+  assert.equal(capped.includes("should-drop"), false);
+  assert.match(capped, /OR/);
+  assert.ok(capped.includes('"Toyota Camry"'));
+  assert.equal(searchQuery({ raw: "$TSLA", aliases: [] }), "TSLA");
+  assert.equal(searchQuery({ raw: "#HeatWaveFit", aliases: [] }), "HeatWaveFit");
   const intent = inferQueryIntent("Camry");
   assert.match(floorLine(intent, null, 0, "neighbor"), /No exact print/);
   assert.match(floorLine(intent, null, 3, "neighbor"), /Not an exact match/);

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ageTranslations,
+  boostTopic,
   campaignMove,
   captureArtifacts,
   improvisationsFor,
@@ -201,4 +202,143 @@ test("improvisationsFor ranks ingest gaps as P0 and never invents a ticker overl
   const finance = items.find((i) => /Finance overlay/i.test(i.title));
   assert.ok(finance);
   assert.match(finance!.next, /never invent symbols/i);
+});
+
+test("captureArtifacts leftover qrs.ly short links are QR and cashtags increment", () => {
+  const campaign = topic({
+    id: "heat",
+    label: "HeatWave",
+    platforms: {
+      x: {
+        score: 40,
+        posts: [
+          post("Jump in https://qrs.ly/heat $TSLA $TSLA", { url: "https://x.test/status/qrs" }),
+        ],
+      },
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: emptySlice(),
+    },
+  });
+  const arts = captureArtifacts(campaign);
+  assert.ok(arts.some((a) => a.kind === "qr" && /qrs\.ly/i.test(a.value)));
+  assert.equal(
+    arts.some((a) => a.kind === "url" && /qrs\.ly/i.test(a.value)),
+    false,
+  );
+  const tsla = arts.find((a) => a.kind === "ticker" && a.value === "$TSLA");
+  assert.ok(tsla);
+  assert.ok(tsla!.mentions >= 2);
+});
+
+test("boostTopic appends title lean from receipts and does not invent a WHY", () => {
+  const pos = boostTopic(
+    topic({
+      id: "camry",
+      label: "Camry",
+      platforms: {
+        x: {
+          score: 40,
+          posts: [post("Camry wins award"), post("great demand for Camry")],
+        },
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: emptySlice(),
+      },
+    }),
+  );
+  assert.match(pos.whyTrending, /Titles lean positive/);
+  assert.equal(/invent/i.test(pos.whyTrending), false);
+  assert.ok(pos.predictions);
+
+  const neg = boostTopic(
+    topic({
+      id: "camry",
+      label: "Camry",
+      platforms: {
+        x: {
+          score: 40,
+          posts: [post("Camry recall lawsuit"), post("Camry fails crash test")],
+        },
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: emptySlice(),
+      },
+    }),
+  );
+  assert.match(neg.whyTrending, /Titles lean negative/);
+
+  const split = boostTopic(
+    topic({
+      id: "camry",
+      label: "Camry",
+      platforms: {
+        x: {
+          score: 40,
+          posts: [post("Camry wins award"), post("Camry fails crash test")],
+        },
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: emptySlice(),
+      },
+    }),
+  );
+  assert.match(split.whyTrending, /Titles are split/);
+
+  const thin = boostTopic(
+    topic({
+      id: "camry",
+      label: "Camry",
+      platforms: {
+        x: { score: 10, posts: [post("Camry hybrid thread")] },
+        reddit: emptySlice(),
+        hn: emptySlice(),
+        public: emptySlice(),
+      },
+    }),
+  );
+  assert.equal(/Titles lean|Titles are split/i.test(thin.whyTrending), false);
+});
+
+test("improvisationsFor skips QR image decode once a payload already landed", () => {
+  const payload: TrendsPayload = {
+    topics: [topic({ id: "camry", label: "Camry", divergence: 0.4 })],
+    updatedAt: "2026-08-26T12:00:00.000Z",
+    sources: { x: true, reddit: true, hn: true, public: true },
+    degraded: [],
+  };
+  const withQr = improvisationsFor(payload, [
+    {
+      topicId: "camry",
+      whyTrending: "receipts only",
+      confidence: 0.4,
+      category: "campaigns",
+      artifacts: [{ kind: "qr", value: "https://qrs.ly/heat", mentions: 1, platforms: ["x"] }],
+      audiences: [],
+      campaign: { angle: "", forCompetitors: "", risk: "low", timing: "rising", hook: "" },
+      causation: {
+        topicId: "camry",
+        firstAt: "2026-08-26T12:00:00.000Z",
+        firstPlatform: "x",
+        lagHours: null,
+        peakAt: null,
+        drivers: [],
+        thin: false,
+      },
+      sentiment: {
+        topicId: "camry",
+        lean: "thin",
+        overall: { pos: 0, neg: 0, risk: 0, n: 1 },
+        byPlatform: {},
+        drivers: [],
+        quotes: [],
+        hits: [],
+        thin: true,
+      },
+    },
+  ]);
+  assert.equal(
+    withQr.some((i) => /QR image decode/i.test(i.title)),
+    false,
+  );
 });

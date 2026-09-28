@@ -2,14 +2,15 @@ import { classifyTopic } from "./desk";
 import { buildMindMap } from "./mindmap";
 import { forecastGraph, type HistoryPoint } from "./predict";
 import { collectTape, historyForTopics, trendStore } from "./trend-store";
-import type {
-  BoosterPayload,
-  BoosterTopicBrief,
-  CollectionStatus,
-  DeskCategory,
-  LeafForecast,
-  MindGraph,
-  TrendsPayload,
+import {
+  TREND_DATABASES,
+  type BoosterPayload,
+  type BoosterTopicBrief,
+  type CollectionStatus,
+  type DeskCategory,
+  type LeafForecast,
+  type MindGraph,
+  type TrendsPayload,
 } from "./types";
 
 const COLLECT_MS = 2500;
@@ -86,6 +87,14 @@ export async function collectAndForecast(
       })),
     },
   };
+}
+
+/** Collect query `category=` must be a real desk plug. Unknown values stay World. */
+export function asCategory(value: string | null | undefined): DeskCategory {
+  if (value && (TREND_DATABASES as readonly string[]).includes(value)) {
+    return value as DeskCategory;
+  }
+  return "all";
 }
 
 export function categoryForTape(payload: TrendsPayload, briefs: BoosterTopicBrief[]): DeskCategory {

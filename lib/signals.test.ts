@@ -29,6 +29,7 @@ test("isGoogleTrendsUrl accepts trends hosts only", () => {
   assert.equal(isGoogleTrendsUrl("https://trends.google.com/trending/rss?geo=US"), true);
   assert.equal(isGoogleTrendsUrl("https://www.google.com/trends/explore?q=Camry"), true);
   assert.equal(isGoogleTrendsUrl("https://x.com/camry"), false);
+  assert.equal(isGoogleTrendsUrl("https://news.google.com/trends"), false);
   assert.equal(isGoogleTrendsUrl("not a url"), false);
 });
 
@@ -47,6 +48,7 @@ test("filterTrendItems keeps only phrase hits and dedupes URLs", () => {
   assert.equal(camry[0].title, "Camry");
   const world = filterTrendItems(items);
   assert.equal(world.length, 2);
+  assert.equal(filterTrendItems(items, "  ").length, 2);
   const duped = filterTrendItems([...items, items[0]]);
   assert.equal(duped.length, 2);
 });

@@ -184,4 +184,8 @@ test("classifyTopic routes QR campaigns, NWS weather, and tickers without a shar
     classifyTopic(topic({ id: "tsla", label: "Tesla", tickers: [{ symbol: "TSLA", sentiment: "mixed", mentions: 3 }] })),
     "markets",
   );
+  assert.equal(
+    classifyTopic(topic({ id: "backdrop", label: "Backdrop lighting kit" })),
+    "culture",
+  );
 });
