@@ -77,6 +77,19 @@ test("buildCausation treats recall language as a risk driver, not a slogan", () 
   assert.ok(report.drivers.some((d) => d.id === "velocity" && d.label === "Cooling"));
 });
 
+test("buildCausation peakAt is the highest-score dated receipt, not the latest stamp", () => {
+  const report = buildCausation(
+    topic([
+      post("hn", "early quiet thread", "2026-08-26T11:00:00.000Z", 5),
+      post("reddit", "peak heat", "2026-08-26T12:00:00.000Z", 90),
+      post("public", "late recap", "2026-08-26T15:00:00.000Z", 40),
+    ]),
+  );
+  assert.equal(report.firstAt, "2026-08-26T11:00:00.000Z");
+  assert.equal(report.peakAt, "2026-08-26T12:00:00.000Z");
+  assert.equal(report.firstPlatform, "hn");
+});
+
 test("buildTimeseries ignores invalid dates and buckets dated receipts", () => {
   assert.deepEqual(buildTimeseries([topic([])]), []);
   const series = buildTimeseries([

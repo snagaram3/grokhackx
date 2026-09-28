@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cachePeek } from "@/lib/cache";
-import { collectAndForecast } from "@/lib/collect";
+import { asCategory, collectAndForecast } from "@/lib/collect";
 import { cronAuthorized, requestOrigin, runHourlyCollect } from "@/lib/hourly-collect";
 import { allDatabaseNames, readTrendDbConfig } from "@/lib/trend-db";
 import { trendStore } from "@/lib/trend-store";
-import type { BoosterPayload, DeskCategory, TrendsPayload } from "@/lib/types";
-import { TREND_DATABASES } from "@/lib/types";
+import type { BoosterPayload, TrendsPayload } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-function asCategory(value: string | null): DeskCategory {
-  if (value && (TREND_DATABASES as readonly string[]).includes(value)) {
-    return value as DeskCategory;
-  }
-  return "all";
-}
 
 export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get("hourly") === "1") {

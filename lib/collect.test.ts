@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { categoryForTape } from "./collect";
+import { asCategory, categoryForTape } from "./collect";
 import { uniquePhrases } from "./hourly-collect";
 import type { BoosterTopicBrief, Topic, TrendsPayload } from "./types";
 
@@ -61,6 +61,18 @@ function brief(topicId: string, category: BoosterTopicBrief["category"]): Booste
     },
   };
 }
+
+test("asCategory only accepts real desk plugs and keeps unknown values on World", () => {
+  assert.equal(asCategory(null), "all");
+  assert.equal(asCategory(undefined), "all");
+  assert.equal(asCategory(""), "all");
+  assert.equal(asCategory("tape"), "all");
+  assert.equal(asCategory("hack"), "all");
+  assert.equal(asCategory("MARKETS"), "all");
+  assert.equal(asCategory("markets"), "markets");
+  assert.equal(asCategory("security"), "security");
+  assert.equal(asCategory("all"), "all");
+});
 
 test("uniquePhrases trims, case-folds, drops crumbs, and caps at four", () => {
   assert.deepEqual(uniquePhrases([null, " ", "a", "Camry", "camry", "Tesla"]), ["Camry", "Tesla"]);
