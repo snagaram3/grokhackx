@@ -1,7 +1,36 @@
+import type { Post } from "./types";
+
 export interface FleetHealth {
   configured: boolean;
   ok: boolean;
   ms: number;
+}
+
+/** Drop junk ADK snapshot rows. Never invent a platform, title, or URL. */
+export function asFleetPost(raw: unknown): Post | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  const platform = p.platform;
+  if (platform !== "hn" && platform !== "public" && platform !== "reddit" && platform !== "x") {
+    return null;
+  }
+  const title = String(p.title ?? "").trim();
+  const url = String(p.url ?? "").trim();
+  if (!title || !url) return null;
+  const post: Post = {
+    platform,
+    title,
+    url,
+    score: Number(p.score) || 0,
+    createdAt: String(p.createdAt ?? ""),
+  };
+  const parsed = Date.parse(post.createdAt);
+  if (Number.isNaN(parsed)) post.createdAt = "";
+  else post.createdAt = new Date(parsed).toISOString();
+  if (typeof p.sourceApi === "string" && p.sourceApi) post.sourceApi = p.sourceApi;
+  if (typeof p.tool === "string" && p.tool) post.tool = p.tool;
+  if (typeof p.collectedAt === "string" && p.collectedAt) post.collectedAt = p.collectedAt;
+  return post;
 }
 
 export function fleetBaseUrl(): string {

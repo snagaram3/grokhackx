@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fleetBaseUrl, fleetChip, fleetHealth, fleetIngest } from "./fleet";
+import { asFleetPost, fleetBaseUrl, fleetChip, fleetHealth, fleetIngest } from "./fleet";
 
 function withEnv(key: string, value: string | undefined, fn: () => Promise<void> | void) {
   const prev = process.env[key];
@@ -21,6 +21,47 @@ function withEnv(key: string, value: string | undefined, fn: () => Promise<void>
   }
   restore();
 }
+
+test("asFleetPost drops junk snapshot rows and stamps only proven fields", () => {
+  assert.equal(asFleetPost(null), null);
+  assert.equal(asFleetPost("post"), null);
+  assert.equal(asFleetPost({ platform: "web", title: "Camry", url: "https://nhtsa.test/camry" }), null);
+  assert.equal(asFleetPost({ platform: "public", title: "   ", url: "https://nhtsa.test/camry" }), null);
+  assert.equal(asFleetPost({ platform: "public", title: "Camry", url: "" }), null);
+
+  const kept = asFleetPost({
+    platform: "public",
+    title: "  Camry recall  ",
+    url: " https://nhtsa.test/camry ",
+    score: "40",
+    createdAt: "2026-08-26T12:00:00.000Z",
+    sourceApi: "NHTSA",
+    tool: "collect_nhtsa",
+    collectedAt: "2026-08-26T12:00:01.000Z",
+  });
+  assert.equal(kept?.platform, "public");
+  assert.equal(kept?.title, "Camry recall");
+  assert.equal(kept?.url, "https://nhtsa.test/camry");
+  assert.equal(kept?.score, 40);
+  assert.equal(kept?.createdAt, "2026-08-26T12:00:00.000Z");
+  assert.equal(kept?.sourceApi, "NHTSA");
+  assert.equal(kept?.tool, "collect_nhtsa");
+  assert.equal(kept?.collectedAt, "2026-08-26T12:00:01.000Z");
+
+  const junkStamp = asFleetPost({
+    platform: "hn",
+    title: "Camry thread",
+    url: "https://hn.test/item/1",
+    score: "nope",
+    createdAt: "not-a-date",
+    sourceApi: 12,
+    tool: "",
+  });
+  assert.equal(junkStamp?.score, 0);
+  assert.equal(junkStamp?.createdAt, "");
+  assert.equal(junkStamp?.sourceApi, undefined);
+  assert.equal(junkStamp?.tool, undefined);
+});
 
 test("fleetBaseUrl strips a trailing slash", () => {
   return withEnv("FLEET_URL", "https://fleet.example/", () => {
@@ -100,6 +141,33 @@ test("fleetIngest maps missing URL to 503 and TimeoutError to 504", async () => 
       const down = await fleetIngest("Camry");
       assert.equal(down.status, 503);
       assert.equal(down.text, "fleet unreachable");
+    });
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
+test("fleetHealth stays configured when /health is down or fetch throws", async () => {
+  const orig = globalThis.fetch;
+  globalThis.fetch = (async () => ({ ok: false }) as Response) as typeof fetch;
+  try {
+    await withEnv("FLEET_URL", "https://fleet.example", async () => {
+      const down = await fleetHealth(80);
+      assert.equal(down.configured, true);
+      assert.equal(down.ok, false);
+    });
+  } finally {
+    globalThis.fetch = orig;
+  }
+
+  globalThis.fetch = (async () => {
+    throw new Error("ECONNREFUSED");
+  }) as typeof fetch;
+  try {
+    await withEnv("FLEET_URL", "https://fleet.example", async () => {
+      const thrown = await fleetHealth(80);
+      assert.equal(thrown.configured, true);
+      assert.equal(thrown.ok, false);
     });
   } finally {
     globalThis.fetch = orig;

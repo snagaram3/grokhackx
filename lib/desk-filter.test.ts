@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { categoryCounts, filterByCategory } from "./desk";
-import type { Topic } from "./types";
+import { categoryCounts, classifyTopic, filterByCategory } from "./desk";
+import type { CapturedArtifact, Topic } from "./types";
 
 function emptySlice() {
   return { score: 0, posts: [] as Topic["platforms"]["public"]["posts"] };
@@ -96,4 +96,46 @@ test("categoryCounts all equals tape length and category buckets sum to all", ()
   assert.equal(counts.markets, 1);
   assert.equal(counts.tech, 1);
   assert.equal(counts.culture, 1);
+});
+
+function notice(sourceApi: string): Topic {
+  return topic({
+    id: "notice",
+    label: "Advisory notice",
+    platforms: {
+      x: emptySlice(),
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: {
+        score: 12,
+        posts: [
+          {
+            platform: "public",
+            title: "Advisory notice",
+            url: "https://weather.test/notice",
+            score: 12,
+            createdAt: "2026-08-29T00:00:00.000Z",
+            sourceApi,
+          },
+        ],
+      },
+    },
+  });
+}
+
+test("classifyTopic maps National Weather Service receipts to weather, not news", () => {
+  assert.equal(classifyTopic(notice("National Weather Service")), "weather");
+  assert.equal(classifyTopic(notice("National Weather Service forecast office")), "weather");
+  // weather.gov is an event-tick alias, not a SOURCE_CATEGORY key — public score still lands news.
+  assert.equal(classifyTopic(notice("weather.gov")), "news");
+});
+
+test("filterByCategory honors QR artifacts so a culture print can plug campaigns", () => {
+  const meme = topic({ id: "meme", label: "Meme" });
+  assert.deepEqual(filterByCategory([meme], "culture").map((t) => t.id), ["meme"]);
+  const arts = new Map<string, CapturedArtifact[]>([
+    ["meme", [{ kind: "qr", value: "https://qrco.de/hwfit", mentions: 1, platforms: ["x"] }]],
+  ]);
+  assert.deepEqual(filterByCategory([meme], "campaigns", arts).map((t) => t.id), ["meme"]);
+  assert.deepEqual(filterByCategory([meme], "culture", arts).map((t) => t.id), []);
 });

@@ -115,3 +115,24 @@ test("takeawayFor and lensCaption use the campaign hook for All", () => {
   assert.equal(takeawayFor(packed, "kids")?.label, "Family");
   assert.equal(lensCaption(undefined, "kids"), undefined);
 });
+
+test("formatKeepBrief lists every audience, empty receipts, and the receipt WHY when Ask is empty", () => {
+  const packed = brief({ artifacts: [] });
+  const emptyPosts: Topic = {
+    ...topic(),
+    platforms: {
+      x: emptySlice(),
+      reddit: emptySlice(),
+      hn: emptySlice(),
+      public: emptySlice(),
+    },
+  };
+  const md = formatKeepBrief({ topic: emptyPosts, brief: packed, lens: "all" });
+  assert.match(md, /Rising from Wikipedia and NHTSA receipts/);
+  assert.match(md, /## Audiences/);
+  assert.match(md, /Family/);
+  assert.match(md, /18–24/);
+  assert.match(md, /No posts attached/);
+  assert.equal(/## Artifacts/.test(md), false);
+  assert.equal(/Kind:/.test(md), false);
+});
