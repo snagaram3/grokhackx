@@ -93,3 +93,18 @@ test("mergePatents prefers a dated grant over an undated Wikidata stub", () => {
   assert.equal(merged.length, 1);
   assert.equal(merged[0]?.at, "1983-04-01T00:00:00Z");
 });
+
+test("mergePatents keeps the earlier grant, first undated stub, and distinct URLs", () => {
+  const url = "https://patents.google.com/patent/US4501234";
+  const early = rec({ title: "early grant", url, at: "1980-01-01T00:00:00Z" });
+  const late = rec({ title: "late grant", url, at: "1990-01-01T00:00:00Z" });
+  assert.equal(mergePatents([late], [early])[0]?.title, "early grant");
+  assert.equal(mergePatents([early], [late])[0]?.title, "early grant");
+
+  const first = rec({ title: "first stub", url, at: null });
+  const second = rec({ title: "second stub", url, at: null });
+  assert.equal(mergePatents([first], [second])[0]?.title, "first stub");
+
+  const other = rec({ title: "other", url: "https://patents.google.com/patent/US9999999", at: "1981-01-01T00:00:00Z" });
+  assert.equal(mergePatents([early], [other]).length, 2);
+});

@@ -75,6 +75,11 @@ test("buildMindMap uses the plugged hub and filters by category", () => {
     graph.nodes.some((n) => n.topicId === "storm"),
     false,
   );
+
+  const plug = buildMindMap([camry], [brief("camry", "markets", [])], "markets");
+  assert.equal(plug.hubId, "hub:markets");
+  assert.equal(plug.nodes.find((n) => n.kind === "hub")?.label, "Markets");
+  assert.match(plug.nodes.find((n) => n.kind === "hub")?.detail ?? "", /prints in this plug/);
 });
 
 test("shared artifacts draw amber bridges; unique artifacts do not invent them", () => {

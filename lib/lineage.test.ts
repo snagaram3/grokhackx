@@ -6,7 +6,9 @@ import {
   formatLineageSection,
   lineageLine,
   stampPost,
+  stampPosts,
   stampSource,
+  stampSources,
 } from "./lineage";
 import type { POIData, PublicDataSource } from "./insights-types";
 import type { Post, ResearchSource } from "./types";
@@ -61,6 +63,13 @@ test("stampPost and stampSource keep existing lineage stamps", () => {
   };
   const withDefault = stampSource(src);
   assert.equal(withDefault.tool, "research_wikipedia");
+
+  const batch = stampPosts([{ ...post, tool: undefined, collectedAt: undefined }], "collect_gdelt");
+  assert.equal(batch[0].tool, "collect_gdelt");
+  assert.ok(batch[0].collectedAt);
+  const sources = stampSources([src]);
+  assert.equal(sources[0].tool, "research_wikipedia");
+  assert.ok(sources[0].collectedAt);
 });
 
 test("formatCollectedAt and lineageLine stay empty without a stamp", () => {

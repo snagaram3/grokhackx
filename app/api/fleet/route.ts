@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validatorAgent } from "@/lib/agents";
 import { plugTopicFromPosts } from "@/lib/cluster";
-import { fleetHealth, fleetIngest } from "@/lib/fleet";
+import { asFleetPost, fleetHealth, fleetIngest } from "@/lib/fleet";
 import { inferQueryIntent, toQueryInsight } from "@/lib/query";
 import { buildSentiment } from "@/lib/sentiment";
 import type { Post, TrendsPayload } from "@/lib/types";
@@ -19,32 +19,6 @@ type FleetSnap = {
   note?: string;
   agent?: string;
 };
-
-function asPost(raw: unknown): Post | null {
-  if (!raw || typeof raw !== "object") return null;
-  const p = raw as Record<string, unknown>;
-  const platform = p.platform;
-  if (platform !== "hn" && platform !== "public" && platform !== "reddit" && platform !== "x") {
-    return null;
-  }
-  const title = String(p.title ?? "").trim();
-  const url = String(p.url ?? "").trim();
-  if (!title || !url) return null;
-  const post: Post = {
-    platform,
-    title,
-    url,
-    score: Number(p.score) || 0,
-    createdAt: String(p.createdAt ?? ""),
-  };
-  const parsed = Date.parse(post.createdAt);
-  if (Number.isNaN(parsed)) post.createdAt = "";
-  else post.createdAt = new Date(parsed).toISOString();
-  if (typeof p.sourceApi === "string" && p.sourceApi) post.sourceApi = p.sourceApi;
-  if (typeof p.tool === "string" && p.tool) post.tool = p.tool;
-  if (typeof p.collectedAt === "string" && p.collectedAt) post.collectedAt = p.collectedAt;
-  return post;
-}
 
 /** Warm Cloud Run and report whether Footprint ingest is live. Never leaks the URL. */
 export async function GET() {
@@ -74,7 +48,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "fleet returned non-JSON" }, { status: 502 });
   }
 
-  const posts = (snap.posts ?? []).map(asPost).filter((p): p is Post => Boolean(p));
+  const posts = (snap.posts ?? []).map(asFleetPost).filter((p): p is Post => Boolean(p));
   const intent = inferQueryIntent(phrase);
   const clustered = plugTopicFromPosts(phrase, posts, intent);
   const validated = validatorAgent(clustered);

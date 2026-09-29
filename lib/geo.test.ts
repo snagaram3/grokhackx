@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CITIES, geoAgent, tvCountry, weatherSpots, WORLD_REDDIT, youtubeRegions } from "./geo";
+import {
+  CITIES,
+  geoAgent,
+  nearPlaceFilter,
+  PLACE_NEAR_KM,
+  tvCountry,
+  weatherSpots,
+  WORLD_REDDIT,
+  youtubeRegions,
+} from "./geo";
 
 test("geoAgent keeps the world tape and parks a city sub beside it", () => {
   const world = geoAgent("all");
@@ -32,4 +41,12 @@ test("weather, YouTube, and TV routing stay city-scoped without geocoding", () =
   assert.equal(tvCountry("all"), null);
   assert.equal(tvCountry("london"), "GB");
   assert.equal(tvCountry("saopaulo"), "BR");
+});
+
+test("nearPlaceFilter keeps the 450km box and does not invent a title geocode", () => {
+  assert.equal(PLACE_NEAR_KM, 450);
+  const tokyo = CITIES.tokyo;
+  // Same longitude: 4.04° of latitude is ~449km, 4.06° is ~451km.
+  assert.equal(nearPlaceFilter(tokyo.lat + 4.04, tokyo.lon, "tokyo"), true);
+  assert.equal(nearPlaceFilter(tokyo.lat + 4.06, tokyo.lon, "tokyo"), false);
 });
