@@ -49,6 +49,7 @@ test("zod schemas clamp X volume and reject empty cluster lists", () => {
 
 test("research brief lists dropped receipts and marks the default sense", () => {
   assert.equal(researchBriefFilename("Toyota Camry!!"), "hawkxai-research-toyota-camry.md");
+  assert.equal(researchBriefFilename("   "), "hawkxai-research-topic.md");
   const payload: ResearchPayload = {
     query: "apple",
     updatedAt: "2026-08-26T00:00:00Z",

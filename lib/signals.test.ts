@@ -51,6 +51,12 @@ test("filterTrendItems keeps only phrase hits and dedupes URLs", () => {
   assert.equal(duped.length, 2);
 });
 
+test("filterTrendItems does not leak the world tape for a camera miss", () => {
+  const items = parseTrendsRss(SAMPLE);
+  const miss = filterTrendItems(items, "camera");
+  assert.deepEqual(miss, []);
+});
+
 test("trendsRssGeos uses the city YouTube region, world uses five geos", () => {
   assert.deepEqual(trendsRssGeos("tokyo"), ["JP"]);
   assert.equal(trendsRssGeos("all").length, 5);

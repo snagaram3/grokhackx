@@ -12,6 +12,14 @@ test("tokenHits keeps Camry a whole token", () => {
   assert.equal(tokenHits("heat https://x.test/#HeatWaveFit", "#HeatWaveFit"), true);
 });
 
+test("tokenHits drops crumb needles and requires the $ on a cashtag", () => {
+  assert.equal(tokenHits("Camry hybrid", ""), false);
+  assert.equal(tokenHits("Camry hybrid", "a"), false);
+  assert.equal(tokenHits("Camry hybrid", "  "), false);
+  assert.equal(tokenHits("$TSLA earnings", "$TSLA"), true);
+  assert.equal(tokenHits("TSLA earnings", "$TSLA"), false);
+});
+
 test("titleScore does not boost camryn occupiers for Camry", () => {
   assert.ok(titleScore("Toyota Camry automotive repair manual", ["camry", "toyota camry"]) >= 1.6);
   assert.ok(titleHits("Toyota Camry automotive repair manual", ["camry"]));
@@ -45,6 +53,11 @@ test("inferQueryIntent classifies ticker, hashtag, campaign, product, and recall
   const generic = inferQueryIntent("blorptastic");
   assert.equal(generic.kind, "generic");
   assert.equal(generic.category, "culture");
+
+  const blank = inferQueryIntent("  ");
+  assert.equal(blank.kind, "generic");
+  assert.equal(blank.category, "culture");
+  assert.equal(blank.raw, "");
 });
 
 test("searchQuery quotes multi-word aliases and floorLine refuses invented reach", () => {
