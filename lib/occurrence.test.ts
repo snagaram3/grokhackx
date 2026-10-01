@@ -136,6 +136,14 @@ test("requestOrigin prefers forwarded host, then Vercel, then local", () => {
     "https://hawkxai.example",
   );
   assert.equal(
+    requestOrigin(
+      new Request("http://localhost/api/collect", {
+        headers: { "x-forwarded-host": "hawkxai.example" },
+      }),
+    ),
+    "http://hawkxai.example",
+  );
+  assert.equal(
     requestOrigin(new Request("http://localhost/api/collect", { headers: { host: "127.0.0.1:3001" } })),
     "http://127.0.0.1:3001",
   );

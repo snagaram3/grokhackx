@@ -41,6 +41,14 @@ test("normalizeAliases keeps label and extra, drops dupes", () => {
   assert.deepEqual(aliases, ["Camry", "Toyota Camry", "TM"]);
 });
 
+test("normalizeAliases leftover comma-splits extras and drops crumbs shorter than two", () => {
+  assert.deepEqual(normalizeAliases("Camry", ["Toyota Camry, Camry Hybrid", "x", "  "]), [
+    "Camry",
+    "Toyota Camry",
+    "Camry Hybrid",
+  ]);
+});
+
 test("receiptHitsAlias uses word boundaries", () => {
   assert.equal(receiptHitsAlias({ title: "New Camry hybrid", url: "https://x.test/a" }, ["Camry"]), true);
   assert.equal(receiptHitsAlias({ title: "camera sensor", url: "https://x.test/a" }, ["Camry"]), false);

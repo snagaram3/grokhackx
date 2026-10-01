@@ -140,9 +140,16 @@ test("slug, totalScore, velocityOf, and divergenceOf stay threshold-stable", () 
   assert.equal(totalScore(rising), 100);
   assert.equal(velocityOf("camry", 70), "rising");
   assert.equal(velocityOf("camry", 40), "peaking");
+  assert.equal(velocityOf("camry", 60), "peaking");
+  assert.equal(velocityOf("camry", 61), "rising");
+  assert.equal(velocityOf("missing", 70, [rising]), "rising");
   assert.equal(velocityOf("camry", 120, [rising]), "rising");
   assert.equal(velocityOf("camry", 80, [rising]), "fading");
   assert.equal(velocityOf("camry", 102, [rising]), "peaking");
+  const longSlug = slug("Toyota Camry ".repeat(20));
+  assert.equal(longSlug.length, 48);
+  assert.equal(longSlug.startsWith("toyota-camry"), true);
+  assert.equal(slug("!!!"), "topic");
   assert.equal(divergenceOf(rising), 0.25);
   const bubble = topic({
     id: "hn-only",
