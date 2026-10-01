@@ -60,6 +60,12 @@ test("parseEnabledSources prefers the query param and only accepts a JSON array 
   assert.deepEqual(parseEnabledSources(null, "[]"), []);
 });
 
+test("parseEnabledSources leftover empty query falls through; whitespace query disables every feed", () => {
+  assert.deepEqual(parseEnabledSources("", '["GDELT"]'), ["GDELT"]);
+  assert.deepEqual(parseEnabledSources("  ,  ", '["GDELT"]'), []);
+  assert.deepEqual(parseEnabledSources("GDELT,", '["Wikipedia"]'), ["GDELT"]);
+});
+
 test("filterByEnabledSources treats undefined as all and [] as none", () => {
   const feeds = [{ name: "GDELT" }, { name: "GitHub" }, { name: "Wikipedia" }];
   assert.deepEqual(filterByEnabledSources(feeds, undefined), feeds);

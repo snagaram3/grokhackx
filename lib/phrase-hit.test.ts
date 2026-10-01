@@ -19,6 +19,12 @@ test("titleScore does not boost camryn occupiers for Camry", () => {
   assert.ok(titleScore("GitHub: cmblum2/camryn-portfolio", ["camry"]) < 1.4);
 });
 
+test("tokenHits leftover hyphen/underscore boundaries; empty needles miss", () => {
+  assert.equal(tokenHits("Camry-hybrid launch", "Camry"), true);
+  assert.equal(tokenHits("toyota_camry recall", "toyota camry"), true);
+  assert.equal(titleHits("Toyota Camry automotive repair manual", []), false);
+});
+
 test("inferQueryIntent classifies ticker, hashtag, campaign, product, and recall", () => {
   const ticker = inferQueryIntent(" $TSLA ");
   assert.equal(ticker.kind, "ticker");

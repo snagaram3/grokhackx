@@ -43,6 +43,18 @@ test("mergeWatchStores unions ids and keeps the later snap", () => {
   assert.deepEqual(merged.ids.toSorted(), ["camry", "tesla"]);
   assert.equal(merged.snaps.camry.receiptCount, 7);
   assert.equal(merged.snaps.tesla.receiptCount, 2);
+
+  const equalAt: TapeWatchStore = {
+    ids: ["camry"],
+    snaps: { camry: snap("camry", "2026-08-26T09:00:00Z", 9) },
+  };
+  const tied = mergeWatchStores(remote, equalAt);
+  assert.equal(tied.snaps.camry.receiptCount, 7);
+});
+
+test("parseWatchStore leftover empty string and missing ids stay empty", () => {
+  assert.deepEqual(parseWatchStore(""), { ids: [], snaps: {} });
+  assert.deepEqual(parseWatchStore(JSON.stringify({ snaps: {} })), { ids: [], snaps: {} });
 });
 
 test("parseWatchStore returns empty on null, garbage, and non-string ids", () => {
