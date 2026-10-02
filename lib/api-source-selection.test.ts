@@ -4,6 +4,8 @@ import {
   API_SOURCE_CATEGORIES,
   applyToggleCategory,
   applyToggleSource,
+  disableAllSources,
+  enableAllSources,
   filterByEnabledSources,
   getAllApiSources,
   loadApiSourceSelection,
@@ -94,4 +96,10 @@ test("applyToggleCategory enable is idempotent; disable keeps other categories",
   const disabled = applyToggleCategory(enabled, "Sports", false);
   assert.deepEqual(disabled.enabled, ["GDELT"]);
   assert.deepEqual(applyToggleCategory(start, "Not A Category", true), start);
+});
+
+test("enableAllSources and disableAllSources return catalog extremes without a window", () => {
+  assert.equal(typeof window, "undefined");
+  assert.deepEqual(disableAllSources().enabled, []);
+  assert.deepEqual(enableAllSources().enabled, getAllApiSources());
 });
