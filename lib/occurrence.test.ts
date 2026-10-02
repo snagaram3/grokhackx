@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildEventTicks, eventKindOf } from "./event-ticks";
-import { cronAuthorized, requestOrigin } from "./hourly-collect";
+import { cronAuthorized, requestOrigin, runHourlyCollect } from "./hourly-collect";
+import { cachePeek, cacheSet } from "./cache";
+import { addWatchlist, removeWatchlist } from "./watchlist-store";
+import { normalizeAliases } from "./poi";
+import type { TrendsPayload } from "./types";
 import { alignTotals, historyMarks, xAtTime } from "./occurrence-overlay";
 import type { TimeBucket, Topic } from "./types";
 
@@ -147,4 +151,48 @@ test("requestOrigin prefers forwarded host, then Vercel, then local", () => {
   assert.equal(requestOrigin(new Request("http://localhost/api/collect")), "http://localhost:3001");
   if (prevVercel === undefined) delete process.env.VERCEL_URL;
   else process.env.VERCEL_URL = prevVercel;
+});
+
+test("runHourlyCollect snaps a watchlist phrase and skips a failed lookup", async () => {
+  const prevHost = process.env.TREND_DB_HOST;
+  const prevUser = process.env.TREND_DB_USER;
+  delete process.env.TREND_DB_HOST;
+  delete process.env.TREND_DB_USER;
+  const prevTape = cachePeek<TrendsPayload>("trends:v1");
+  const label = "CoverageHourlyCamryZz";
+  const entity = await addWatchlist(label, normalizeAliases(label));
+  const orig = globalThis.fetch;
+  try {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes(encodeURIComponent(label))) {
+        return {
+          ok: true,
+          json: async () => ({
+            topics: [],
+            updatedAt: "2026-10-02T10:00:00.000Z",
+            sources: { x: false, reddit: false, hn: false, public: true },
+            degraded: [],
+          }),
+        } as Response;
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as Response;
+    }) as typeof fetch;
+    const snapped = await runHourlyCollect("http://localhost:3001");
+    assert.ok(snapped.snapped.includes(label));
+    assert.equal(snapped.backend, "memory");
+
+    globalThis.fetch = (async () => ({ ok: false, status: 503, json: async () => ({}) }) as Response) as typeof fetch;
+    const skipped = await runHourlyCollect("http://localhost:3001");
+    assert.ok(skipped.skipped.includes(label));
+    assert.equal(skipped.snapped.includes(label), false);
+  } finally {
+    globalThis.fetch = orig;
+    await removeWatchlist(entity.id);
+    if (prevTape) cacheSet("trends:v1", prevTape);
+    if (prevHost === undefined) delete process.env.TREND_DB_HOST;
+    else process.env.TREND_DB_HOST = prevHost;
+    if (prevUser === undefined) delete process.env.TREND_DB_USER;
+    else process.env.TREND_DB_USER = prevUser;
+  }
 });

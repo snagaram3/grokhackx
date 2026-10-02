@@ -41,6 +41,7 @@ function post(title: string, url: string, platform: Post["platform"] = "public")
 test("validatorAgent drops invalid URLs, empty topics, and duplicate labels", () => {
   const camry = topic("Camry", [
     post("Camry hybrid", "https://en.wikipedia.org/wiki/Camry"),
+    post("http mirror", "http://nhtsa.test/camry"),
     post("broken", "not-a-url"),
     post("ftp", "ftp://files.test/camry"),
   ]);
@@ -55,8 +56,11 @@ test("validatorAgent drops invalid URLs, empty topics, and duplicate labels", ()
     result.topics.map((t) => t.label),
     ["Camry", "Tesla"],
   );
-  assert.equal(result.topics[0].platforms.public.posts.length, 1);
-  assert.equal(result.topics[0].platforms.public.posts[0].url, "https://en.wikipedia.org/wiki/Camry");
+  assert.equal(result.topics[0].platforms.public.posts.length, 2);
+  assert.deepEqual(
+    result.topics[0].platforms.public.posts.map((p) => p.url),
+    ["https://en.wikipedia.org/wiki/Camry", "http://nhtsa.test/camry"],
+  );
   assert.equal(result.topics[1].platforms.public.score, 100);
   assert.match(result.log, /validator: -2 topics, -3 posts/);
 });
