@@ -40,11 +40,26 @@ test("QR image URLs decode data/text/chl and ignore ordinary pages", () => {
   assert.equal(payloadFromQrImageUrl("not a url"), null);
 });
 
+function clusteredTopic(id: string) {
+  const slice = { score: 0, posts: [] as { title: string }[] };
+  return {
+    id,
+    label: id,
+    platforms: { x: slice, reddit: slice, hn: slice },
+  };
+}
+
 test("zod schemas clamp X volume and reject empty cluster lists", () => {
   assert.equal(xTrendSchema.parse({ topic: "Camry", volume: 140 }).volume, 100);
   assert.equal(xTrendSchema.parse({ topic: "Camry", volume: -4 }).volume, 0);
   assert.throws(() => clusteredListSchema.parse({ topics: [] }));
   assert.equal(whyItemSchema.parse({ id: "t1", why: "x".repeat(400) }).why.length, 280);
+});
+
+test("clusteredListSchema leftover rejects a 25th Gemini topic", () => {
+  const topics = Array.from({ length: 24 }, (_, i) => clusteredTopic(`t${i}`));
+  assert.equal(clusteredListSchema.parse({ topics }).topics.length, 24);
+  assert.throws(() => clusteredListSchema.parse({ topics: [...topics, clusteredTopic("t24")] }));
 });
 
 test("research brief lists dropped receipts and marks the default sense", () => {

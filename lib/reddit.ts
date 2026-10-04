@@ -34,13 +34,13 @@ function decodeXml(s: string): string {
     .replace(/&apos;/g, "'");
 }
 
-function rankScores(posts: Post[]): Post[] {
+export function rankScores(posts: Post[]): Post[] {
   const max = Math.max(0, ...posts.map((p) => p.score));
   if (max > 1) return posts;
   return posts.map((p, i) => ({ ...p, score: Math.max(5, 90 - i * 2) }));
 }
 
-function parseListing(json: { data?: { children?: RedditChild[] } }): Post[] {
+export function parseListing(json: { data?: { children?: RedditChild[] } }): Post[] {
   const children = json.data?.children ?? [];
   return children
     .map((c) => c.data)
@@ -59,7 +59,7 @@ function parseListing(json: { data?: { children?: RedditChild[] } }): Post[] {
     });
 }
 
-function parseAtom(xml: string): Post[] {
+export function parseAtom(xml: string): Post[] {
   if (!xml.includes("<entry") && !xml.includes("<item")) {
     throw new Error("not atom/rss");
   }
