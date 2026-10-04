@@ -15,6 +15,11 @@ function loadPermissions(): HandbookPayload["permissions"] {
   }
 }
 
+export function handbookWantsMarkdown(req: { headers: { get(name: string): string | null }; url: string }): boolean {
+  const accept = req.headers.get("accept") ?? "";
+  return accept.includes("text/markdown") || new URL(req.url).searchParams.get("format") === "md";
+}
+
 export function diffPermissions(
   prev: HandbookPermissions | null,
   current: HandbookPermissions,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { categoryForTape } from "./collect";
+import { categoryForTape, collectionCategory } from "./collect";
 import { uniquePhrases } from "./hourly-collect";
 import type { BoosterTopicBrief, Topic, TrendsPayload } from "./types";
 
@@ -99,4 +99,25 @@ test("categoryForTape prefers query category, then the lead brief, then classify
     ),
     "markets",
   );
+});
+
+test("collectionCategory leftover unplugged tape stays all even when query.category is set", () => {
+  const markets = payload([topic("camry", "Camry")], {
+    query: {
+      raw: "Camry",
+      kind: "product",
+      category: "markets",
+      aliases: [],
+      search: "Camry",
+      match: "exact",
+      hitCount: 1,
+      floor: "Exact print",
+    },
+  });
+  assert.equal(collectionCategory(markets, [brief("camry", "culture")]), "all");
+  assert.equal(
+    collectionCategory({ ...markets, plugged: "Camry" }, [brief("camry", "culture")]),
+    "markets",
+  );
+  assert.equal(collectionCategory(payload([topic("storm", "Gulf storm")], { plugged: "storm" }), [brief("storm", "weather")]), "weather");
 });

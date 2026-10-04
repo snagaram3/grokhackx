@@ -419,7 +419,7 @@ async function loadLabels(
   return out;
 }
 
-async function collectQr(db: PgPool | null, receipts: PoiReceipt[]): Promise<Map<string, string>> {
+export async function collectQr(db: PgPool | null, receipts: PoiReceipt[]): Promise<Map<string, string>> {
   const qr = new Map<string, string>(memoryQr);
   if (db) {
     try {

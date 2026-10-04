@@ -96,11 +96,18 @@ export function categoryForTape(payload: TrendsPayload, briefs: BoosterTopicBrie
   return brief?.category ?? classifyTopic(lead, brief?.artifacts ?? []);
 }
 
+export function collectionCategory(
+  payload: TrendsPayload,
+  briefs: BoosterTopicBrief[],
+): DeskCategory {
+  return payload.plugged ? categoryForTape(payload, briefs) : "all";
+}
+
 export async function attachCollection(
   payload: TrendsPayload,
   booster: BoosterPayload,
 ): Promise<BoosterPayload> {
-  const category = payload.plugged ? categoryForTape(payload, booster.briefs) : "all";
+  const category = collectionCategory(payload, booster.briefs);
   const { forecasts, collection } = await collectAndForecast(payload, booster.briefs, category);
   return { ...booster, forecasts, collection };
 }

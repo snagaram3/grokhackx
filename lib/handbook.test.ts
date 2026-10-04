@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { FLEET_GRAPH, LINEAGE_GRAPH, ML_GRAPH } from "./architecture-diagrams";
 import { MIN_HISTGB_SAMPLES, MIN_OCCUPANCY_LABELS, MODEL_CARD } from "./histgb";
 import { HANDBOOK_FLOORS } from "./handbook-types";
-import { diffPermissions, handbookMarkdown } from "./handbook";
+import { diffPermissions, handbookMarkdown, handbookWantsMarkdown } from "./handbook";
 import type { HandbookPayload } from "./handbook-types";
 
 test("handbook floors stay locked to HistGB abstain counts", () => {
@@ -102,4 +102,27 @@ test("handbookMarkdown prints the permission table, mermaid, and fit floors with
   assert.match(md, /Post\.tool \+ collectedAt/);
   assert.match(md, /- `lib\/histgb\.ts`/);
   assert.doesNotMatch(md, /invented WHY that/);
+});
+
+test("handbookWantsMarkdown leftover Accept and format=md stay markdown, JSON stays JSON", () => {
+  const markdown = handbookWantsMarkdown({
+    headers: { get: (name: string) => (name === "accept" ? "text/markdown, */*" : null) },
+    url: "https://hawkxai.test/api/handbook",
+  });
+  const query = handbookWantsMarkdown({
+    headers: { get: () => null },
+    url: "https://hawkxai.test/api/handbook?format=md",
+  });
+  const json = handbookWantsMarkdown({
+    headers: { get: (name: string) => (name === "accept" ? "application/json" : null) },
+    url: "https://hawkxai.test/api/handbook",
+  });
+  const empty = handbookWantsMarkdown({
+    headers: { get: () => null },
+    url: "https://hawkxai.test/api/handbook",
+  });
+  assert.equal(markdown, true);
+  assert.equal(query, true);
+  assert.equal(json, false);
+  assert.equal(empty, false);
 });
