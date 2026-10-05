@@ -43,6 +43,22 @@ test("QR image URLs decode data/text/chl and ignore ordinary pages", () => {
 test("zod schemas clamp X volume and reject empty cluster lists", () => {
   assert.equal(xTrendSchema.parse({ topic: "Camry", volume: 140 }).volume, 100);
   assert.equal(xTrendSchema.parse({ topic: "Camry", volume: -4 }).volume, 0);
+  assert.deepEqual(xTrendSchema.parse({ topic: "Camry", volume: 10 }).urls, []);
+  assert.equal(
+    xTrendSchema.parse({
+      topic: "Camry",
+      volume: 10,
+      urls: ["https://x.com/a", "https://x.com/b", "https://x.com/c"],
+    }).urls.length,
+    3,
+  );
+  assert.throws(() =>
+    xTrendSchema.parse({
+      topic: "Camry",
+      volume: 10,
+      urls: ["https://x.com/a", "https://x.com/b", "https://x.com/c", "https://x.com/d"],
+    }),
+  );
   assert.throws(() => clusteredListSchema.parse({ topics: [] }));
   assert.equal(whyItemSchema.parse({ id: "t1", why: "x".repeat(400) }).why.length, 280);
 });
