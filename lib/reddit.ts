@@ -92,7 +92,7 @@ function parseAtom(xml: string): Post[] {
   return rankScores(posts);
 }
 
-function parseArctic(json: { data?: RedditChild["data"][] }): Post[] {
+export function parseArctic(json: { data?: RedditChild["data"][] }): Post[] {
   const rows = json.data ?? [];
   const posts = rows
     .filter((d): d is NonNullable<typeof d> => Boolean(d?.title) && !d?.stickied)
