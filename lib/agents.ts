@@ -102,7 +102,7 @@ export function collectorAgent(
   };
 }
 
-async function collectXSource(geo: GeoQuery, q?: string): Promise<SourceResult> {
+export async function collectXSource(geo: GeoQuery, q?: string): Promise<SourceResult> {
   let xPosts: Post[] = [];
   if (hasGoogleKey()) {
     try {
