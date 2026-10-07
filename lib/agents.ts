@@ -40,7 +40,7 @@ export function mergedPublicPosts(xR: SourceResult, publicR: SourceResult): Post
   return [...publicR.posts, ...(xR.fallbackPosts ?? [])];
 }
 
-async function collectSource(
+export async function collectSource(
   source: SourceName,
   run: () => Promise<Post[]>,
 ): Promise<SourceResult> {
@@ -60,7 +60,7 @@ async function collectSource(
   }
 }
 
-async function collectPublicSource(
+export async function collectPublicSource(
   city: GeoQuery["city"],
   topic?: string,
   enabledSources?: string[],
