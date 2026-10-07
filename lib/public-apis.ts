@@ -352,7 +352,7 @@ function wikiPostsFromFeatured(data: unknown): Post[] {
   return tfaTitle && tfaHref ? [post(`Wikipedia: ${tfaTitle}`, tfaHref, 80, "Wikipedia")] : [];
 }
 
-function wikiPostsFromPageviews(data: unknown): Post[] {
+export function wikiPostsFromPageviews(data: unknown): Post[] {
   const articles = asArray(asRecord(asArray(asRecord(data)?.items)[0])?.articles);
   return articles
     .map((row) => {
