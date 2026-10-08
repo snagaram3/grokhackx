@@ -191,17 +191,7 @@ function decodeXml(text: string): string {
     .replace(/&#39;/g, "'");
 }
 
-async function arxiv(query: string): Promise<ResearchSource[]> {
-  const url =
-    `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}` +
-    `&start=0&max_results=6&sortBy=relevance&sortOrder=descending`;
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: { Accept: "application/atom+xml, application/xml, text/xml", "User-Agent": UA },
-    signal: AbortSignal.timeout(18_000),
-  });
-  if (!res.ok) throw new Error(`arxiv ${res.status}`);
-  const xml = await res.text();
+export function mapArxivXml(xml: string): ResearchSource[] {
   const entries = xml.split("<entry>").slice(1);
   const out: ResearchSource[] = [];
   let n = 0;
@@ -224,6 +214,45 @@ async function arxiv(query: string): Promise<ResearchSource[]> {
   return out;
 }
 
+async function arxiv(query: string): Promise<ResearchSource[]> {
+  const url =
+    `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}` +
+    `&start=0&max_results=6&sortBy=relevance&sortOrder=descending`;
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { Accept: "application/atom+xml, application/xml, text/xml", "User-Agent": UA },
+    signal: AbortSignal.timeout(18_000),
+  });
+  if (!res.ok) throw new Error(`arxiv ${res.status}`);
+  return mapArxivXml(await res.text());
+}
+
+export function mapUsptoPatents(data: unknown): ResearchSource[] {
+  const patents = Array.isArray((data as { patents?: unknown })?.patents)
+    ? ((data as { patents: unknown[] }).patents)
+    : [];
+  const out: ResearchSource[] = [];
+  let n = 0;
+  for (const row of patents) {
+    const p = row as {
+      patent_number?: string;
+      patent_title?: string;
+      patent_date?: string;
+      patent_abstract?: string;
+    };
+    if (!p?.patent_number || !p?.patent_title) continue;
+    out.push({
+      id: sourceId("uspto", ++n),
+      kind: "uspto",
+      title: p.patent_title.slice(0, 220),
+      url: `https://patents.google.com/patent/US${p.patent_number}`,
+      snippet: (p.patent_abstract || `USPTO ${p.patent_number} · ${p.patent_date ?? ""}`).slice(0, 480),
+      createdAt: p.patent_date || undefined,
+    });
+  }
+  return out;
+}
+
 async function uspto(query: string): Promise<ResearchSource[]> {
   const q = JSON.stringify({ _text_any: { patent_title: query } });
   const url =
@@ -235,28 +264,7 @@ async function uspto(query: string): Promise<ResearchSource[]> {
     signal: AbortSignal.timeout(18_000),
   });
   if (!res.ok) throw new Error(`uspto ${res.status}`);
-  const data = (await res.json()) as {
-    patents?: {
-      patent_number?: string;
-      patent_title?: string;
-      patent_date?: string;
-      patent_abstract?: string;
-    }[];
-  };
-  const out: ResearchSource[] = [];
-  let n = 0;
-  for (const p of data.patents ?? []) {
-    if (!p.patent_number || !p.patent_title) continue;
-    out.push({
-      id: sourceId("uspto", ++n),
-      kind: "uspto",
-      title: p.patent_title.slice(0, 220),
-      url: `https://patents.google.com/patent/US${p.patent_number}`,
-      snippet: (p.patent_abstract || `USPTO ${p.patent_number} · ${p.patent_date ?? ""}`).slice(0, 480),
-      createdAt: p.patent_date || undefined,
-    });
-  }
-  return out;
+  return mapUsptoPatents(await res.json());
 }
 
 function postsToSources(
