@@ -352,6 +352,39 @@ function wikiPostsFromFeatured(data: unknown): Post[] {
   return tfaTitle && tfaHref ? [post(`Wikipedia: ${tfaTitle}`, tfaHref, 80, "Wikipedia")] : [];
 }
 
+export function wikiPostsFromOpenSearch(data: unknown): Post[] {
+  const rows = asArray(data);
+  const titles = asArray(rows[1]).map(str);
+  const urls = asArray(rows[3]).map(str);
+  return titles
+    .map((title, i) =>
+      title && urls[i] ? post(`Wikipedia: ${title}`, urls[i], 80 - i * 4, "Wikipedia") : null,
+    )
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapNhtsaRecalls(data: unknown): Post[] {
+  return asArray(asRecord(data)?.results)
+    .map((row) => {
+      const r = asRecord(row);
+      const id = str(r?.NHTSACampaignNumber);
+      const component = str(r?.Component);
+      const title = [id && `Recall ${id}`, component, str(r?.Manufacturer)]
+        .filter(Boolean)
+        .join(" · ");
+      if (!title) return null;
+      return post(
+        title,
+        id ? `https://www.nhtsa.gov/recalls?nhtsaId=${encodeURIComponent(id)}` : "https://www.nhtsa.gov/recalls",
+        70,
+        "NHTSA",
+        str(r?.ReportReceivedDate) || undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
 function wikiPostsFromPageviews(data: unknown): Post[] {
   const articles = asArray(asRecord(asArray(asRecord(data)?.items)[0])?.articles);
   return articles
@@ -476,18 +509,11 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asArray(
+        const posts = wikiPostsFromOpenSearch(
           await getJson(
             `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(topic.trim())}&limit=10&namespace=0&format=json`,
           ),
         );
-        const titles = asArray(data[1]).map(str);
-        const urls = asArray(data[3]).map(str);
-        const posts = titles
-          .map((title, i) =>
-            title && urls[i] ? post(`Wikipedia: ${title}`, urls[i], 80 - i * 4, "Wikipedia") : null,
-          )
-          .filter((p): p is Post => Boolean(p));
         if (posts.length) return posts;
       }
       return wikipediaTape();
@@ -1618,30 +1644,11 @@ const FEEDS: Feed[] = [
       const v = vehicleQuery(topic || "");
       if (!v) return [];
       const year = v.year || "2024";
-      const data = asRecord(
+      return mapNhtsaRecalls(
         await getJson(
           `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(v.make)}&model=${encodeURIComponent(v.model)}&modelYear=${encodeURIComponent(year)}`,
         ),
       );
-      return asArray(data?.results)
-        .map((row) => {
-          const r = asRecord(row);
-          const id = str(r?.NHTSACampaignNumber);
-          const component = str(r?.Component);
-          const title = [id && `Recall ${id}`, component, str(r?.Manufacturer)]
-            .filter(Boolean)
-            .join(" · ");
-          if (!title) return null;
-          return post(
-            title,
-            id ? `https://www.nhtsa.gov/recalls?nhtsaId=${encodeURIComponent(id)}` : "https://www.nhtsa.gov/recalls",
-            70,
-            "NHTSA",
-            str(r?.ReportReceivedDate) || undefined,
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
     },
   },
   {
