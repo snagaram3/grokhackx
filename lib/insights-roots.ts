@@ -589,10 +589,13 @@ async function pubmedDated(query: string): Promise<RootReceipt[]> {
     signal: AbortSignal.timeout(15_000),
   });
   if (!summaryRes.ok) throw new Error(`pubmed summary ${summaryRes.status}`);
-  const summary = (await summaryRes.json()) as {
-    result?: Record<string, { title?: string; sortpubdate?: string; source?: string } | string[]>;
-  };
-  const result = summary.result ?? {};
+  return pubmedReceiptsFromSummary(ids, await summaryRes.json());
+}
+
+export function pubmedReceiptsFromSummary(ids: string[], summary: unknown): RootReceipt[] {
+  const result =
+    (summary as { result?: Record<string, { title?: string; sortpubdate?: string; source?: string } | string[]> })
+      ?.result ?? {};
   const out: RootReceipt[] = [];
   for (const id of ids) {
     const row = result[id];

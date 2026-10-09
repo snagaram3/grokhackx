@@ -45,15 +45,8 @@ function sourceId(kind: ResearchSourceKind, n: number): string {
   return `${kind}-${n}`;
 }
 
-async function duckDuckGo(query: string): Promise<ResearchSource[]> {
-  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: { Accept: "application/json", "User-Agent": UA },
-    signal: AbortSignal.timeout(12_000),
-  });
-  if (!res.ok) throw new Error(`duckduckgo ${res.status}`);
-  const data = (await res.json()) as {
+export function mapDuckDuckGo(data: unknown, query: string): ResearchSource[] {
+  const row = (data ?? {}) as {
     Heading?: string;
     Abstract?: string;
     AbstractURL?: string;
@@ -61,16 +54,16 @@ async function duckDuckGo(query: string): Promise<ResearchSource[]> {
   };
   const out: ResearchSource[] = [];
   let n = 0;
-  if (data.Abstract && data.AbstractURL) {
+  if (row.Abstract && row.AbstractURL) {
     out.push({
       id: sourceId("web", ++n),
       kind: "web",
-      title: (data.Heading || query).slice(0, 160),
-      url: data.AbstractURL,
-      snippet: data.Abstract.slice(0, 480),
+      title: (row.Heading || query).slice(0, 160),
+      url: row.AbstractURL,
+      snippet: row.Abstract.slice(0, 480),
     });
   }
-  for (const topic of data.RelatedTopics ?? []) {
+  for (const topic of row.RelatedTopics ?? []) {
     if (out.length >= 8) break;
     if (topic.Text && topic.FirstURL) {
       out.push({
@@ -85,42 +78,40 @@ async function duckDuckGo(query: string): Promise<ResearchSource[]> {
   return out;
 }
 
-async function wikipedia(query: string): Promise<ResearchSource[]> {
-  const searchUrl =
-    `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}` +
-    `&limit=5&namespace=0&format=json&origin=*`;
-  const searchRes = await fetch(searchUrl, {
+async function duckDuckGo(query: string): Promise<ResearchSource[]> {
+  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+  const res = await fetch(url, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
     signal: AbortSignal.timeout(12_000),
   });
-  if (!searchRes.ok) throw new Error(`wikipedia search ${searchRes.status}`);
-  const searched = (await searchRes.json()) as [string, string[], string[], string[]];
-  const titles = searched[1] ?? [];
-  const urls = searched[3] ?? [];
+  if (!res.ok) throw new Error(`duckduckgo ${res.status}`);
+  return mapDuckDuckGo(await res.json(), query);
+}
+
+export function mapWikipediaSources(
+  searched: unknown,
+  summary: {
+    title?: string;
+    extract?: string;
+    content_urls?: { desktop?: { page?: string } };
+  } | null,
+): ResearchSource[] {
+  const row = Array.isArray(searched) ? searched : [];
+  const titles = Array.isArray(row[1]) ? (row[1] as unknown[]).map((t) => String(t ?? "")) : [];
+  const urls = Array.isArray(row[3]) ? (row[3] as unknown[]).map((u) => String(u ?? "")) : [];
   if (!titles.length) return [];
 
   const title = titles[0];
   const pageUrl = urls[0] || `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
-  const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}`;
-  const summaryRes = await fetch(summaryUrl, {
-    cache: "no-store",
-    headers: { Accept: "application/json", "User-Agent": UA },
-    signal: AbortSignal.timeout(12_000),
-  });
   const out: ResearchSource[] = [];
-  if (summaryRes.ok) {
-    const page = (await summaryRes.json()) as {
-      title?: string;
-      extract?: string;
-      content_urls?: { desktop?: { page?: string } };
-    };
+  if (summary) {
     out.push({
       id: sourceId("wikipedia", 1),
       kind: "wikipedia",
-      title: page.title || title,
-      url: page.content_urls?.desktop?.page || pageUrl,
-      snippet: (page.extract || "").slice(0, 600),
+      title: summary.title || title,
+      url: summary.content_urls?.desktop?.page || pageUrl,
+      snippet: (summary.extract || "").slice(0, 600),
     });
   }
   for (let i = 1; i < Math.min(titles.length, 4); i++) {
@@ -133,6 +124,37 @@ async function wikipedia(query: string): Promise<ResearchSource[]> {
     });
   }
   return out;
+}
+
+async function wikipedia(query: string): Promise<ResearchSource[]> {
+  const searchUrl =
+    `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}` +
+    `&limit=5&namespace=0&format=json&origin=*`;
+  const searchRes = await fetch(searchUrl, {
+    cache: "no-store",
+    headers: { Accept: "application/json", "User-Agent": UA },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!searchRes.ok) throw new Error(`wikipedia search ${searchRes.status}`);
+  const searched = await searchRes.json();
+  const titles = Array.isArray(searched) && Array.isArray(searched[1]) ? searched[1] : [];
+  if (!titles.length) return [];
+
+  const title = String(titles[0] ?? "");
+  const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+  const summaryRes = await fetch(summaryUrl, {
+    cache: "no-store",
+    headers: { Accept: "application/json", "User-Agent": UA },
+    signal: AbortSignal.timeout(12_000),
+  });
+  const page = summaryRes.ok
+    ? ((await summaryRes.json()) as {
+        title?: string;
+        extract?: string;
+        content_urls?: { desktop?: { page?: string } };
+      })
+    : null;
+  return mapWikipediaSources(searched, page);
 }
 
 async function pubmed(query: string): Promise<ResearchSource[]> {
@@ -160,10 +182,13 @@ async function pubmed(query: string): Promise<ResearchSource[]> {
     signal: AbortSignal.timeout(15_000),
   });
   if (!summaryRes.ok) throw new Error(`pubmed summary ${summaryRes.status}`);
-  const summary = (await summaryRes.json()) as {
-    result?: Record<string, { title?: string; sortpubdate?: string; source?: string } | string[]>;
-  };
-  const result = summary.result ?? {};
+  return mapPubMedSummary(ids, await summaryRes.json());
+}
+
+export function mapPubMedSummary(ids: string[], summary: unknown): ResearchSource[] {
+  const result =
+    (summary as { result?: Record<string, { title?: string; sortpubdate?: string; source?: string } | string[]> })
+      ?.result ?? {};
   const out: ResearchSource[] = [];
   let n = 0;
   for (const id of ids) {

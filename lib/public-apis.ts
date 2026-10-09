@@ -122,6 +122,58 @@ function post(
   );
 }
 
+export function mapUsgsQuakes(data: unknown): Post[] {
+  return asArray(asRecord(data)?.features)
+    .map((row) => {
+      const f = asRecord(row);
+      const props = asRecord(f?.properties);
+      if (!props || !str(props.title)) return null;
+      const title = str(props.title);
+      return post(
+        title,
+        str(props.url) || "https://earthquake.usgs.gov/",
+        Math.min(100, num(props.mag) * 12),
+        "USGS",
+        num(props.time) ? new Date(num(props.time)).toISOString() : undefined,
+        geoFromCoords(asRecord(f?.geometry)?.coordinates, title),
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapCisaKev(data: unknown): Post[] {
+  return asArray(asRecord(data)?.vulnerabilities)
+    .slice(0, PER_FEED)
+    .map((row) => {
+      const v = asRecord(row);
+      const id = str(v?.cveID);
+      const name = str(v?.vulnerabilityName);
+      if (!id && !name) return null;
+      return post(
+        `${id} ${name}`.trim(),
+        id ? `https://nvd.nist.gov/vuln/detail/${id}` : "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+        72,
+        "CISA",
+        str(v?.dateAdded) || undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapFederalRegister(data: unknown): Post[] {
+  return asArray(asRecord(data)?.results)
+    .map((row) => {
+      const d = asRecord(row);
+      const title = str(d?.title);
+      const href = str(d?.html_url);
+      if (!title || !href) return null;
+      return post(title, href, 58, "Federal Register", str(d?.publication_date) || undefined);
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
 async function getText(url: string, ms = FEED_MS): Promise<string> {
   const res = await fetch(url, {
     cache: "no-store",
@@ -540,30 +592,10 @@ const FEEDS: Feed[] = [
     name: "USGS",
     category: "Environment",
     match: ["usgs", "earthquake"],
-    run: async () => {
-      const data = asRecord(
-        await getJson(
-          "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson",
-        ),
-      );
-      return asArray(data?.features)
-        .map((row) => {
-          const f = asRecord(row);
-          const props = asRecord(f?.properties);
-          if (!props || !str(props.title)) return null;
-          const title = str(props.title);
-          return post(
-            title,
-            str(props.url) || "https://earthquake.usgs.gov/",
-            Math.min(100, num(props.mag) * 12),
-            "USGS",
-            num(props.time) ? new Date(num(props.time)).toISOString() : undefined,
-            geoFromCoords(asRecord(f?.geometry)?.coordinates, title),
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
-    },
+    run: async () =>
+      mapUsgsQuakes(
+        await getJson("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson"),
+      ),
   },
   {
     name: "NASA EONET",
@@ -1273,29 +1305,10 @@ const FEEDS: Feed[] = [
     name: "CISA KEV",
     category: "Security",
     match: ["cisa"],
-    run: async () => {
-      const data = asRecord(
-        await getJson(
-          "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
-        ),
-      );
-      return asArray(data?.vulnerabilities)
-        .slice(0, PER_FEED)
-        .map((row) => {
-          const v = asRecord(row);
-          const id = str(v?.cveID);
-          const name = str(v?.vulnerabilityName);
-          if (!id && !name) return null;
-          return post(
-            `${id} ${name}`.trim(),
-            id ? `https://nvd.nist.gov/vuln/detail/${id}` : "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
-            72,
-            "CISA",
-            str(v?.dateAdded) || undefined,
-          );
-        })
-        .filter((p): p is Post => Boolean(p));
-    },
+    run: async () =>
+      mapCisaKev(
+        await getJson("https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"),
+      ),
   },
   {
     name: "Google News",
@@ -1595,17 +1608,7 @@ const FEEDS: Feed[] = [
       const url = q
         ? `https://www.federalregister.gov/api/v1/documents.json?conditions[term]=${encodeURIComponent(q)}&per_page=${PER_FEED}`
         : `https://www.federalregister.gov/api/v1/documents.json?per_page=${PER_FEED}&order=newest`;
-      const data = asRecord(await getJson(url));
-      return asArray(data?.results)
-        .map((row) => {
-          const d = asRecord(row);
-          const title = str(d?.title);
-          const href = str(d?.html_url);
-          if (!title || !href) return null;
-          return post(title, href, 58, "Federal Register", str(d?.publication_date) || undefined);
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
+      return mapFederalRegister(await getJson(url));
     },
   },
   {

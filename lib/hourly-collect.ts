@@ -28,6 +28,14 @@ function hourBucket(at = new Date()): string {
   return d.toISOString();
 }
 
+/** Empty watchlist + a cached tape snaps `"tape"` instead of inventing a phrase. */
+export function snapCachedTape(
+  phrases: string[],
+  tape: TrendsPayload | null | undefined,
+): tape is TrendsPayload {
+  return phrases.length === 0 && Boolean(tape);
+}
+
 export function uniquePhrases(values: Array<string | null | undefined>): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -62,7 +70,7 @@ export async function runHourlyCollect(origin: string): Promise<HourlyCollectRes
   const snapped: string[] = [];
   const skipped: string[] = [];
 
-  if (phrases.length === 0 && tape) {
+  if (snapCachedTape(phrases, tape)) {
     const boosted = boostTrends(tape);
     await collectTape(tape, boosted.briefs, { snapshotId: `${hour}|tape` });
     if (tape.poiCompare) recordIndustryHour(tape.poiCompare, hour);
