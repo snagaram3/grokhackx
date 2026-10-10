@@ -122,6 +122,89 @@ function post(
   );
 }
 
+export function mapNasaEonet(data: unknown): Post[] {
+  return asArray(asRecord(data)?.events)
+    .map((row) => {
+      const e = asRecord(row);
+      if (!e || !str(e.title)) return null;
+      const title = str(e.title);
+      const link = str(asRecord(asArray(e.sources)[0])?.url) || str(e.link);
+      const geom0 = asRecord(asArray(e.geometry)[0]);
+      return post(
+        title,
+        link || "https://eonet.gsfc.nasa.gov/",
+        65,
+        "NASA EONET",
+        str(geom0?.date) || undefined,
+        geoFromCoords(geom0?.coordinates, title),
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapNwsAlerts(data: unknown): Post[] {
+  return asArray(asRecord(data)?.features)
+    .map((row) => {
+      const props = asRecord(asRecord(row)?.properties);
+      if (!props || !str(props.headline)) return null;
+      const headline = str(props.headline);
+      const sev =
+        str(props.severity) === "Extreme" ? 95 : str(props.severity) === "Severe" ? 80 : 55;
+      const href =
+        str(props["@id"]) ||
+        str(props.id).replace(/^urn:oid:/, "https://api.weather.gov/alerts/") ||
+        "https://www.weather.gov/";
+      const geom = asRecord(asRecord(row)?.geometry);
+      return post(
+        headline,
+        href,
+        sev,
+        "NWS",
+        str(props.sent) || undefined,
+        geoFromCoords(geom?.coordinates, headline),
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapFbiWanted(data: unknown): Post[] {
+  return asArray(asRecord(data)?.items)
+    .map((row) => {
+      const i = asRecord(row);
+      const title = str(i?.title);
+      if (!title) return null;
+      return post(
+        `FBI Wanted: ${title}`,
+        str(i?.url) || "https://www.fbi.gov/wanted",
+        50,
+        "FBI",
+        str(i?.publication) || undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapDiseaseSh(data: unknown): Post[] {
+  return asArray(data)
+    .slice(0, PER_FEED)
+    .map((row) => {
+      const c = asRecord(row);
+      const name = str(c?.country);
+      if (!name) return null;
+      const today = num(c?.todayCases);
+      return post(
+        `${name}: ${today} new COVID cases`,
+        "https://disease.sh/",
+        Math.min(100, Math.log10(today + 1) * 20),
+        "Disease.sh",
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
 async function getText(url: string, ms = FEED_MS): Promise<string> {
   const res = await fetch(url, {
     cache: "no-store",
@@ -569,60 +652,16 @@ const FEEDS: Feed[] = [
     name: "NASA EONET",
     category: "Science & Math",
     match: ["eonet", "nasa"],
-    run: async () => {
-      const data = asRecord(await getJson("https://eonet.gsfc.nasa.gov/api/v3/events?limit=12&days=7"));
-      return asArray(data?.events)
-        .map((row) => {
-          const e = asRecord(row);
-          if (!e || !str(e.title)) return null;
-          const title = str(e.title);
-          const link = str(asRecord(asArray(e.sources)[0])?.url) || str(e.link);
-          const geom0 = asRecord(asArray(e.geometry)[0]);
-          return post(
-            title,
-            link || "https://eonet.gsfc.nasa.gov/",
-            65,
-            "NASA EONET",
-            str(geom0?.date) || undefined,
-            geoFromCoords(geom0?.coordinates, title),
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
-    },
+    run: async () => mapNasaEonet(await getJson("https://eonet.gsfc.nasa.gov/api/v3/events?limit=12&days=7")),
   },
   {
     name: "National Weather Service",
     category: "Weather",
     match: ["national weather service", "weather.gov", "noaa"],
-    run: async () => {
-      const data = asRecord(
+    run: async () =>
+      mapNwsAlerts(
         await getJson("https://api.weather.gov/alerts/active?status=actual&message_type=alert"),
-      );
-      return asArray(data?.features)
-        .map((row) => {
-          const props = asRecord(asRecord(row)?.properties);
-          if (!props || !str(props.headline)) return null;
-          const headline = str(props.headline);
-          const sev =
-            str(props.severity) === "Extreme" ? 95 : str(props.severity) === "Severe" ? 80 : 55;
-          const href =
-            str(props["@id"]) ||
-            str(props.id).replace(/^urn:oid:/, "https://api.weather.gov/alerts/") ||
-            "https://www.weather.gov/";
-          const geom = asRecord(asRecord(row)?.geometry);
-          return post(
-            headline,
-            href,
-            sev,
-            "NWS",
-            str(props.sent) || undefined,
-            geoFromCoords(geom?.coordinates, headline),
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
-    },
+      ),
   },
   {
     name: "GDACS",
@@ -867,49 +906,14 @@ const FEEDS: Feed[] = [
     name: "FBI Wanted",
     category: "Government",
     match: ["fbi"],
-    run: async () => {
-      const data = asRecord(await getJson("https://api.fbi.gov/wanted/v1/list?pageSize=10"));
-      return asArray(data?.items)
-        .map((row) => {
-          const i = asRecord(row);
-          const title = str(i?.title);
-          if (!title) return null;
-          return post(
-            `FBI Wanted: ${title}`,
-            str(i?.url) || "https://www.fbi.gov/wanted",
-            50,
-            "FBI",
-            str(i?.publication) || undefined,
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
-    },
+    run: async () => mapFbiWanted(await getJson("https://api.fbi.gov/wanted/v1/list?pageSize=10")),
   },
   {
     name: "Disease.sh",
     category: "Health",
     match: ["disease.sh", "disease"],
-    run: async () => {
-      const rows = asArray(
-        await getJson("https://disease.sh/v3/covid-19/countries?sort=todayCases"),
-      );
-      return rows
-        .slice(0, PER_FEED)
-        .map((row) => {
-          const c = asRecord(row);
-          const name = str(c?.country);
-          if (!name) return null;
-          const today = num(c?.todayCases);
-          return post(
-            `${name}: ${today} new COVID cases`,
-            "https://disease.sh/",
-            Math.min(100, Math.log10(today + 1) * 20),
-            "Disease.sh",
-          );
-        })
-        .filter((p): p is Post => Boolean(p));
-    },
+    run: async () =>
+      mapDiseaseSh(await getJson("https://disease.sh/v3/covid-19/countries?sort=todayCases")),
   },
   {
     name: "TheSportsDB",

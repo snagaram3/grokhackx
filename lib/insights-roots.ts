@@ -483,16 +483,19 @@ async function duckAbstract(query: string): Promise<{ title: string; url: string
     signal: AbortSignal.timeout(12_000),
   });
   if (!res.ok) throw new Error(`duckduckgo ${res.status}`);
-  const data = (await res.json()) as {
-    Heading?: string;
-    Abstract?: string;
-    AbstractURL?: string;
-  };
-  if (!data.Abstract || !data.AbstractURL) return null;
+  return mapDuckAbstract(await res.json(), query);
+}
+
+export function mapDuckAbstract(
+  data: unknown,
+  query: string,
+): { title: string; url: string; snippet: string } | null {
+  const rec = data as { Heading?: string; Abstract?: string; AbstractURL?: string } | null;
+  if (!rec?.Abstract || !rec.AbstractURL) return null;
   return {
-    title: (data.Heading || query).slice(0, 160),
-    url: data.AbstractURL,
-    snippet: data.Abstract.slice(0, 480),
+    title: (rec.Heading || query).slice(0, 160),
+    url: rec.AbstractURL,
+    snippet: rec.Abstract.slice(0, 480),
   };
 }
 

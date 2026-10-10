@@ -259,7 +259,7 @@ async function uspto(query: string): Promise<ResearchSource[]> {
   return out;
 }
 
-function postsToSources(
+export function postsToSources(
   kind: Extract<ResearchSourceKind, "hn" | "reddit" | "x" | "public">,
   posts: { title: string; url: string; score: number; createdAt: string; tool?: string; collectedAt?: string }[],
   limit: number,
@@ -287,7 +287,7 @@ async function settle<T>(label: string, run: () => Promise<T>, degraded: string[
   }
 }
 
-function thinBrief(query: string, sources: ResearchSource[]): {
+export function thinBrief(query: string, sources: ResearchSource[]): {
   summary: string;
   findings: ResearchFinding[];
   openQuestions: string[];
