@@ -454,19 +454,7 @@ async function wikidataInception(title: string): Promise<{ at: string; url: stri
       ? inceptionClaim.mainsnak.datavalue.value.time
       : undefined;
   const at = wikidataTime(timeRaw);
-  const patents: RootReceipt[] = [];
-  for (const row of claims.P1246 ?? []) {
-    const num = row.mainsnak?.datavalue?.value;
-    if (typeof num !== "string" || num.length < 4) continue;
-    const clean = num.replace(/\s+/g, "");
-    patents.push({
-      title: `${title} · USPTO ${clean}`,
-      url: `https://patents.google.com/patent/${encodeURIComponent(clean)}`,
-      source: "uspto",
-      at: null,
-      snippet: `Wikidata patent ${clean}`,
-    });
-  }
+  const patents = patentsFromWikidataClaims(title, claims);
   if (!at && !patents.length) return null;
   return {
     at: at ?? patents[0]?.at ?? "",
@@ -494,6 +482,26 @@ async function duckAbstract(query: string): Promise<{ title: string; url: string
     url: data.AbstractURL,
     snippet: data.Abstract.slice(0, 480),
   };
+}
+
+export function patentsFromWikidataClaims(title: string, claims: unknown): RootReceipt[] {
+  const rec = claims && typeof claims === "object" && !Array.isArray(claims)
+    ? (claims as Record<string, { mainsnak?: { datavalue?: { value?: { time?: string } | string } } }[]>)
+    : {};
+  const patents: RootReceipt[] = [];
+  for (const row of rec.P1246 ?? []) {
+    const num = row.mainsnak?.datavalue?.value;
+    if (typeof num !== "string" || num.length < 4) continue;
+    const clean = num.replace(/\s+/g, "");
+    patents.push({
+      title: `${title} · USPTO ${clean}`,
+      url: `https://patents.google.com/patent/${encodeURIComponent(clean)}`,
+      source: "uspto",
+      at: null,
+      snippet: `Wikidata patent ${clean}`,
+    });
+  }
+  return patents;
 }
 
 export function patentsFromLegacy(data: unknown): RootReceipt[] {

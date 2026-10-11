@@ -122,6 +122,166 @@ function post(
   );
 }
 
+export function mapCoinGeckoSearch(data: unknown): Post[] {
+  return asArray(asRecord(data)?.coins)
+    .slice(0, PER_FEED)
+    .map((row, i) => {
+      const c = asRecord(row);
+      const name = str(c?.name);
+      if (!name) return null;
+      const symbol = str(c?.symbol);
+      return post(
+        `${name}${symbol ? ` ($${symbol.toUpperCase()})` : ""}`,
+        `https://www.coingecko.com/en/coins/${str(c?.id) || name}`,
+        85 - i * 5,
+        "CoinGecko",
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapCoinGeckoTrending(data: unknown): Post[] {
+  return asArray(asRecord(data)?.coins)
+    .map((row) => {
+      const item = asRecord(asRecord(row)?.item);
+      if (!item || !str(item.name)) return null;
+      const symbol = str(item.symbol);
+      return post(
+        `${str(item.name)}${symbol ? ` ($${symbol.toUpperCase()})` : ""} trending`,
+        `https://www.coingecko.com/en/coins/${str(item.id) || str(item.name)}`,
+        90 - num(item.score) * 4,
+        "CoinGecko",
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapGithubSearch(data: unknown): Post[] {
+  return asArray(asRecord(data)?.items)
+    .map((row, i) => {
+      const r = asRecord(row);
+      const name = str(r?.full_name);
+      if (!name) return null;
+      return post(
+        `GitHub: ${name}`,
+        str(r?.html_url) || `https://github.com/${name}`,
+        Math.min(100, num(r?.stargazers_count) / 50 || 80 - i * 4),
+        "GitHub",
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapGithubEvents(data: unknown): Post[] {
+  const counts = new Map<string, { n: number; url: string }>();
+  for (const row of asArray(data)) {
+    const e = asRecord(row);
+    const repo = asRecord(e?.repo);
+    const name = str(repo?.name);
+    if (!name) continue;
+    const prev = counts.get(name) ?? { n: 0, url: `https://github.com/${name}` };
+    prev.n += 1;
+    counts.set(name, prev);
+  }
+  return [...counts.entries()]
+    .toSorted((a, b) => b[1].n - a[1].n)
+    .slice(0, PER_FEED)
+    .map(([name, v]) => post(`GitHub: ${name}`, v.url, Math.min(100, v.n * 12), "GitHub"));
+}
+
+export function mapNagerHolidays(data: unknown): Post[] {
+  return asArray(data)
+    .slice(0, PER_FEED)
+    .map((row) => {
+      const h = asRecord(row);
+      const name = str(h?.name);
+      if (!name) return null;
+      return post(
+        `${str(h?.countryCode)} holiday: ${name}`,
+        "https://date.nager.at/",
+        30,
+        "Nager.Date",
+        str(h?.date) || undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapCoinCap(data: unknown, topic?: string): Post[] {
+  const rows = asArray(asRecord(data)?.data);
+  const q = topic?.trim().toLowerCase();
+  const picked = q
+    ? rows.filter((row) => {
+        const a = asRecord(row);
+        return `${str(a?.id)} ${str(a?.symbol)} ${str(a?.name)}`.toLowerCase().includes(q);
+      })
+    : rows;
+  const use = (picked.length ? picked : rows).slice(0, PER_FEED);
+  return use
+    .map((row) => {
+      const a = asRecord(row);
+      const name = str(a?.name);
+      if (!name) return null;
+      const change = num(a?.changePercent24Hr);
+      return post(
+        `${name} $${num(a?.priceUsd).toFixed(2)} (${change.toFixed(1)}%)`,
+        `https://coincap.io/assets/${str(a?.id)}`,
+        Math.min(100, Math.abs(change) * 8 + 20),
+        "CoinCap",
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapFearGreed(data: unknown): Post[] {
+  const row = asRecord(asArray(asRecord(data)?.data)[0]);
+  const value = str(row?.value);
+  const label = str(row?.value_classification);
+  if (!value && !label) return [];
+  return [
+    post(
+      `Crypto Fear & Greed ${label} (${value})`,
+      "https://alternative.me/crypto/fear-and-greed-index/",
+      Math.max(20, num(value)),
+      "Fear & Greed",
+    ),
+  ];
+}
+
+export function mapReliefWeb(data: unknown): Post[] {
+  return asArray(asRecord(data)?.data)
+    .map((row) => {
+      const r = asRecord(row);
+      const fields = asRecord(r?.fields);
+      const title = str(fields?.title);
+      if (!title) return null;
+      return post(title, "https://reliefweb.int/", 65, "ReliefWeb");
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapDuckDuckGoPosts(data: unknown): Post[] {
+  const rec = asRecord(data);
+  const posts: Post[] = [];
+  const heading = str(rec?.Heading);
+  const abs = str(rec?.AbstractText);
+  const absUrl = str(rec?.AbstractURL);
+  if (heading && absUrl) {
+    posts.push(post(abs ? `${heading}: ${abs.slice(0, 120)}` : heading, absUrl, 70, "DuckDuckGo"));
+  }
+  for (const row of asArray(rec?.RelatedTopics)) {
+    const t = asRecord(row);
+    const text = str(t?.Text);
+    const url = str(t?.FirstURL);
+    if (!text || !url) continue;
+    posts.push(post(text.slice(0, 180), url, 50, "DuckDuckGo"));
+    if (posts.length >= PER_FEED) break;
+  }
+  if (!posts.length) throw new Error("DuckDuckGo empty");
+  return posts;
+}
+
 async function getText(url: string, ms = FEED_MS): Promise<string> {
   const res = await fetch(url, {
     cache: "no-store",
@@ -500,40 +660,11 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asRecord(
+        return mapCoinGeckoSearch(
           await getJson(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(topic.trim())}`),
         );
-        return asArray(data?.coins)
-          .slice(0, PER_FEED)
-          .map((row, i) => {
-            const c = asRecord(row);
-            const name = str(c?.name);
-            if (!name) return null;
-            const symbol = str(c?.symbol);
-            return post(
-              `${name}${symbol ? ` ($${symbol.toUpperCase()})` : ""}`,
-              `https://www.coingecko.com/en/coins/${str(c?.id) || name}`,
-              85 - i * 5,
-              "CoinGecko",
-            );
-          })
-          .filter((p): p is Post => Boolean(p));
       }
-      const data = asRecord(await getJson("https://api.coingecko.com/api/v3/search/trending"));
-      return asArray(data?.coins)
-        .map((row) => {
-          const item = asRecord(asRecord(row)?.item);
-          if (!item || !str(item.name)) return null;
-          const symbol = str(item.symbol);
-          return post(
-            `${str(item.name)}${symbol ? ` ($${symbol.toUpperCase()})` : ""} trending`,
-            `https://www.coingecko.com/en/coins/${str(item.id) || str(item.name)}`,
-            90 - num(item.score) * 4,
-            "CoinGecko",
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
+      return mapCoinGeckoTrending(await getJson("https://api.coingecko.com/api/v3/search/trending"));
     },
   },
   {
@@ -807,40 +938,13 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asRecord(
+        return mapGithubSearch(
           await getJson(
             `https://api.github.com/search/repositories?q=${encodeURIComponent(topic.trim())}&sort=updated&per_page=${PER_FEED}`,
           ),
         );
-        return asArray(data?.items)
-          .map((row, i) => {
-            const r = asRecord(row);
-            const name = str(r?.full_name);
-            if (!name) return null;
-            return post(
-              `GitHub: ${name}`,
-              str(r?.html_url) || `https://github.com/${name}`,
-              Math.min(100, num(r?.stargazers_count) / 50 || 80 - i * 4),
-              "GitHub",
-            );
-          })
-          .filter((p): p is Post => Boolean(p));
       }
-      const rows = asArray(await getJson("https://api.github.com/events"));
-      const counts = new Map<string, { n: number; url: string }>();
-      for (const row of rows) {
-        const e = asRecord(row);
-        const repo = asRecord(e?.repo);
-        const name = str(repo?.name);
-        if (!name) continue;
-        const prev = counts.get(name) ?? { n: 0, url: `https://github.com/${name}` };
-        prev.n += 1;
-        counts.set(name, prev);
-      }
-      return [...counts.entries()]
-        .toSorted((a, b) => b[1].n - a[1].n)
-        .slice(0, PER_FEED)
-        .map(([name, v]) => post(`GitHub: ${name}`, v.url, Math.min(100, v.n * 12), "GitHub"));
+      return mapGithubEvents(await getJson("https://api.github.com/events"));
     },
   },
   {
@@ -1251,22 +1355,7 @@ const FEEDS: Feed[] = [
     category: "Calendar",
     match: ["nager.date", "nager"],
     run: async () => {
-      const rows = asArray(await getJson("https://date.nager.at/api/v3/NextPublicHolidaysWorldwide"));
-      return rows
-        .slice(0, PER_FEED)
-        .map((row) => {
-          const h = asRecord(row);
-          const name = str(h?.name);
-          if (!name) return null;
-          return post(
-            `${str(h?.countryCode)} holiday: ${name}`,
-            "https://date.nager.at/",
-            30,
-            "Nager.Date",
-            str(h?.date) || undefined,
-          );
-        })
-        .filter((p): p is Post => Boolean(p));
+      return mapNagerHolidays(await getJson("https://date.nager.at/api/v3/NextPublicHolidaysWorldwide"));
     },
   },
   {
@@ -1411,16 +1500,7 @@ const FEEDS: Feed[] = [
       const url = q
         ? `https://api.reliefweb.int/v1/reports?appname=hawkxai&limit=${PER_FEED}&sort[]=date:desc&query[value]=${encodeURIComponent(q)}`
         : `https://api.reliefweb.int/v1/reports?appname=hawkxai&limit=${PER_FEED}&sort[]=date:desc`;
-      const data = asRecord(await getJson(url));
-      return asArray(data?.data)
-        .map((row) => {
-          const r = asRecord(row);
-          const fields = asRecord(r?.fields);
-          const title = str(fields?.title);
-          if (!title) return null;
-          return post(title, "https://reliefweb.int/", 65, "ReliefWeb");
-        })
-        .filter((p): p is Post => Boolean(p));
+      return mapReliefWeb(await getJson(url));
     },
   },
   {
@@ -1428,19 +1508,7 @@ const FEEDS: Feed[] = [
     category: "Cryptocurrency",
     match: ["alternative.me", "fear"],
     run: async () => {
-      const data = asRecord(await getJson("https://api.alternative.me/fng/?limit=1"));
-      const row = asRecord(asArray(data?.data)[0]);
-      const value = str(row?.value);
-      const label = str(row?.value_classification);
-      if (!value && !label) return [];
-      return [
-        post(
-          `Crypto Fear & Greed ${label} (${value})`,
-          "https://alternative.me/crypto/fear-and-greed-index/",
-          Math.max(20, num(value)),
-          "Fear & Greed",
-        ),
-      ];
+      return mapFearGreed(await getJson("https://api.alternative.me/fng/?limit=1"));
     },
   },
   {
@@ -1451,28 +1519,11 @@ const FEEDS: Feed[] = [
     run: async (_city, topic) => {
       const q = topic?.trim();
       if (!q) return [];
-      const data = asRecord(
+      return mapDuckDuckGoPosts(
         await getJson(
           `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`,
         ),
       );
-      const posts: Post[] = [];
-      const heading = str(data?.Heading);
-      const abs = str(data?.AbstractText);
-      const absUrl = str(data?.AbstractURL);
-      if (heading && absUrl) {
-        posts.push(post(abs ? `${heading}: ${abs.slice(0, 120)}` : heading, absUrl, 70, "DuckDuckGo"));
-      }
-      for (const row of asArray(data?.RelatedTopics)) {
-        const t = asRecord(row);
-        const text = str(t?.Text);
-        const url = str(t?.FirstURL);
-        if (!text || !url) continue;
-        posts.push(post(text.slice(0, 180), url, 50, "DuckDuckGo"));
-        if (posts.length >= PER_FEED) break;
-      }
-      if (!posts.length) throw new Error("DuckDuckGo empty");
-      return posts;
     },
   },
   {
@@ -1528,30 +1579,7 @@ const FEEDS: Feed[] = [
     match: ["coincap"],
     topicAware: true,
     run: async (_city, topic) => {
-      const data = asRecord(await getJson("https://api.coincap.io/v2/assets?limit=20"));
-      const rows = asArray(data?.data);
-      const q = topic?.trim().toLowerCase();
-      const picked = q
-        ? rows.filter((row) => {
-            const a = asRecord(row);
-            return `${str(a?.id)} ${str(a?.symbol)} ${str(a?.name)}`.toLowerCase().includes(q);
-          })
-        : rows;
-      const use = (picked.length ? picked : rows).slice(0, PER_FEED);
-      return use
-        .map((row) => {
-          const a = asRecord(row);
-          const name = str(a?.name);
-          if (!name) return null;
-          const change = num(a?.changePercent24Hr);
-          return post(
-            `${name} $${num(a?.priceUsd).toFixed(2)} (${change.toFixed(1)}%)`,
-            `https://coincap.io/assets/${str(a?.id)}`,
-            Math.min(100, Math.abs(change) * 8 + 20),
-            "CoinCap",
-          );
-        })
-        .filter((p): p is Post => Boolean(p));
+      return mapCoinCap(await getJson("https://api.coincap.io/v2/assets?limit=20"), topic);
     },
   },
   {
