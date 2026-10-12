@@ -122,6 +122,226 @@ function post(
   );
 }
 
+export function mapSpacexUpcoming(data: unknown): Post[] {
+  return asArray(data)
+    .slice(0, PER_FEED)
+    .map((row) => {
+      const l = asRecord(row);
+      const name = str(l?.name);
+      if (!name) return null;
+      return post(
+        `SpaceX: ${name}`,
+        str(asRecord(l?.links)?.webcast) || "https://www.spacex.com/launches/",
+        62,
+        "SpaceX",
+        str(l?.date_utc) || undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapSpacexLaunchLibrary(data: unknown): Post[] {
+  return asArray(asRecord(data)?.results)
+    .map((row) => {
+      const l = asRecord(row);
+      const name = str(l?.name);
+      if (!name) return null;
+      return post(
+        `SpaceX: ${name}`,
+        str(l?.url) || "https://www.spacex.com/launches/",
+        62,
+        "SpaceX",
+        str(l?.net) || undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapSportsDbSearch(data: unknown): Post[] {
+  const rec = asRecord(data);
+  return asArray(rec?.event ?? rec?.events)
+    .map((row) => {
+      const e = asRecord(row);
+      const title = str(e?.strEvent);
+      if (!title) return null;
+      return post(
+        title,
+        `https://www.thesportsdb.com/event/${str(e?.idEvent)}`,
+        70,
+        "TheSportsDB",
+        str(e?.dateEvent) || undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapSportsDbPast(data: unknown): Post[] {
+  return asArray(asRecord(data)?.events)
+    .map((row) => {
+      const e = asRecord(row);
+      const title = str(e?.strEvent);
+      if (!title) return null;
+      return post(
+        title,
+        str(e?.strVideo) || `https://www.thesportsdb.com/event/${str(e?.idEvent)}`,
+        55,
+        "TheSportsDB",
+        str(e?.dateEvent) || undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapEspnScoreboard(data: unknown): Post[] {
+  const posts: Post[] = [];
+  for (const row of asArray(asRecord(data)?.events)) {
+    const e = asRecord(row);
+    const name = str(e?.name);
+    if (!name) continue;
+    const status = str(asRecord(asRecord(e?.status)?.type)?.description);
+    posts.push(
+      post(
+        status ? `${name} (${status})` : name,
+        "https://www.espn.com/",
+        58,
+        "ESPN",
+        str(e?.date) || undefined,
+      ),
+    );
+  }
+  return posts;
+}
+
+export function mapCheapSharkDeals(data: unknown): Post[] {
+  return asArray(data)
+    .map((row) => {
+      const d = asRecord(row);
+      const title = str(d?.title);
+      if (!title) return null;
+      const savings = num(d?.savings);
+      const dealId = str(d?.dealID);
+      return post(
+        `${title} −${Math.round(savings)}%`,
+        dealId
+          ? `https://www.cheapshark.com/redirect?dealID=${dealId}`
+          : "https://www.cheapshark.com/",
+        Math.min(90, savings),
+        "CheapShark",
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapJikanAnime(data: unknown): Post[] {
+  return asArray(asRecord(data)?.data)
+    .map((row) => {
+      const a = asRecord(row);
+      const name = str(a?.title);
+      if (!name) return null;
+      return post(
+        name,
+        str(a?.url) || "https://myanimelist.net/",
+        Math.min(95, num(a?.score) * 10),
+        "Jikan",
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapItunesSearch(data: unknown): Post[] {
+  return asArray(asRecord(data)?.results)
+    .map((row) => {
+      const s = asRecord(row);
+      if (!s) return null;
+      const name = str(s.trackName) || str(s.collectionName);
+      if (!name) return null;
+      const artist = str(s.artistName);
+      return post(
+        artist ? `${name} — ${artist}` : name,
+        str(s.trackViewUrl) || str(s.collectionViewUrl) || "https://music.apple.com/",
+        55,
+        "iTunes",
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapItunesCharts(data: unknown): Post[] {
+  const feed = asRecord(asRecord(data)?.feed);
+  return asArray(feed?.results)
+    .map((row) => {
+      const s = asRecord(row);
+      const name = str(s?.name);
+      if (!name) return null;
+      return post(
+        `${name} — ${str(s?.artistName)}`,
+        str(s?.url) || "https://music.apple.com/",
+        48,
+        "iTunes",
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapMastodonTags(data: unknown): Post[] {
+  return asArray(data)
+    .map((row) => {
+      const t = asRecord(row);
+      const name = str(t?.name);
+      if (!name) return null;
+      const uses = asArray(t?.history).reduce(
+        (sum: number, h) => sum + num(asRecord(h)?.uses),
+        0,
+      );
+      return post(
+        `#${name.replace(/^#/, "")}`,
+        `https://mastodon.social/tags/${encodeURIComponent(name)}`,
+        Math.min(100, Math.log10(uses + 1) * 22),
+        "Mastodon",
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapCarbonIntensity(data: unknown): Post[] {
+  const row = asRecord(asArray(asRecord(data)?.data)[0]);
+  const intensity = asRecord(row?.intensity);
+  if (!intensity) return [];
+  return [
+    post(
+      `UK grid ${str(intensity.index)} (${num(intensity.actual) || num(intensity.forecast)} gCO₂/kWh)`,
+      "https://carbonintensity.org.uk/",
+      str(intensity.index) === "high" || str(intensity.index) === "very high" ? 75 : 40,
+      "Carbon Intensity",
+      str(row?.from) || undefined,
+    ),
+  ];
+}
+
+export function mapOpenFoodFacts(data: unknown): Post[] {
+  return asArray(asRecord(data)?.products)
+    .map((row) => {
+      const p = asRecord(row);
+      const name = str(p?.product_name);
+      if (!name) return null;
+      return post(
+        name,
+        str(p?.url) || `https://world.openfoodfacts.org/product/${str(p?.code)}`,
+        Math.min(80, num(p?.unique_scans_n) / 50),
+        "Open Food Facts",
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
 async function getText(url: string, ms = FEED_MS): Promise<string> {
   const res = await fetch(url, {
     cache: "no-store",
@@ -924,42 +1144,11 @@ const FEEDS: Feed[] = [
           ),
         );
         const events = asArray(data?.event ?? data?.events);
-        if (events.length) {
-          return events
-            .map((row) => {
-              const e = asRecord(row);
-              const title = str(e?.strEvent);
-              if (!title) return null;
-              return post(
-                title,
-                `https://www.thesportsdb.com/event/${str(e?.idEvent)}`,
-                70,
-                "TheSportsDB",
-                str(e?.dateEvent) || undefined,
-              );
-            })
-            .filter((p): p is Post => Boolean(p))
-            .slice(0, PER_FEED);
-        }
+        if (events.length) return mapSportsDbSearch(data);
       }
-      const data = asRecord(
+      return mapSportsDbPast(
         await getJson("https://www.thesportsdb.com/api/v1/json/3/eventspastleague.php?id=4328"),
       );
-      return asArray(data?.events)
-        .map((row) => {
-          const e = asRecord(row);
-          const title = str(e?.strEvent);
-          if (!title) return null;
-          return post(
-            title,
-            str(e?.strVideo) || `https://www.thesportsdb.com/event/${str(e?.idEvent)}`,
-            55,
-            "TheSportsDB",
-            str(e?.dateEvent) || undefined,
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
     },
   },
   {
@@ -976,21 +1165,7 @@ const FEEDS: Feed[] = [
       const posts: Post[] = [];
       for (const item of settled) {
         if (item.status !== "fulfilled") continue;
-        for (const row of asArray(asRecord(item.value)?.events)) {
-          const e = asRecord(row);
-          const name = str(e?.name);
-          if (!name) continue;
-          const status = str(asRecord(asRecord(e?.status)?.type)?.description);
-          posts.push(
-            post(
-              status ? `${name} (${status})` : name,
-              "https://www.espn.com/",
-              58,
-              "ESPN",
-              str(e?.date) || undefined,
-            ),
-          );
-        }
+        posts.push(...mapEspnScoreboard(item.value));
       }
       return posts.slice(0, PER_FEED);
     },
@@ -1001,44 +1176,14 @@ const FEEDS: Feed[] = [
     match: ["spacex"],
     run: async () => {
       try {
-        const rows = asArray(await getJson("https://api.spacexdata.com/v5/launches/upcoming"));
-        const posts = rows
-          .slice(0, PER_FEED)
-          .map((row) => {
-            const l = asRecord(row);
-            const name = str(l?.name);
-            if (!name) return null;
-            return post(
-              `SpaceX: ${name}`,
-              str(asRecord(l?.links)?.webcast) || "https://www.spacex.com/launches/",
-              62,
-              "SpaceX",
-              str(l?.date_utc) || undefined,
-            );
-          })
-          .filter((p): p is Post => Boolean(p));
+        const posts = mapSpacexUpcoming(await getJson("https://api.spacexdata.com/v5/launches/upcoming"));
         if (posts.length) return posts;
       } catch {
         /* api.spacexdata.com often 525s; Launch Library 2 is free and live */
       }
-      const data = asRecord(
+      return mapSpacexLaunchLibrary(
         await getJson("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=8&lsp__name=SpaceX"),
       );
-      return asArray(data?.results)
-        .map((row) => {
-          const l = asRecord(row);
-          const name = str(l?.name);
-          if (!name) return null;
-          return post(
-            `SpaceX: ${name}`,
-            str(l?.url) || "https://www.spacex.com/launches/",
-            62,
-            "SpaceX",
-            str(l?.net) || undefined,
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
     },
   },
   {
@@ -1063,25 +1208,7 @@ const FEEDS: Feed[] = [
       const url = topic?.trim()
         ? `https://www.cheapshark.com/api/1.0/deals?pageSize=10&title=${encodeURIComponent(topic.trim())}`
         : "https://www.cheapshark.com/api/1.0/deals?pageSize=10&sortBy=Deal%20Rating";
-      const rows = asArray(await getJson(url));
-      return rows
-        .map((row) => {
-          const d = asRecord(row);
-          const title = str(d?.title);
-          if (!title) return null;
-          const savings = num(d?.savings);
-          const dealId = str(d?.dealID);
-          return post(
-            `${title} −${Math.round(savings)}%`,
-            dealId
-              ? `https://www.cheapshark.com/redirect?dealID=${dealId}`
-              : "https://www.cheapshark.com/",
-            Math.min(90, savings),
-            "CheapShark",
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
+      return mapCheapSharkDeals(await getJson(url));
     },
   },
   {
@@ -1093,21 +1220,7 @@ const FEEDS: Feed[] = [
       const url = topic?.trim()
         ? `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(topic.trim())}&limit=10`
         : "https://api.jikan.moe/v4/top/anime?filter=airing&limit=10";
-      const data = asRecord(await getJson(url));
-      return asArray(data?.data)
-        .map((row) => {
-          const a = asRecord(row);
-          const name = str(a?.title);
-          if (!name) return null;
-          return post(
-            name,
-            str(a?.url) || "https://myanimelist.net/",
-            Math.min(95, num(a?.score) * 10),
-            "Jikan",
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
+      return mapJikanAnime(await getJson(url));
     },
   },
   {
@@ -1115,19 +1228,7 @@ const FEEDS: Feed[] = [
     category: "Environment",
     match: ["carbon intensity"],
     run: async () => {
-      const data = asRecord(await getJson("https://api.carbonintensity.org.uk/intensity"));
-      const row = asRecord(asArray(data?.data)[0]);
-      const intensity = asRecord(row?.intensity);
-      if (!intensity) return [];
-      return [
-        post(
-          `UK grid ${str(intensity.index)} (${num(intensity.actual) || num(intensity.forecast)} gCO₂/kWh)`,
-          "https://carbonintensity.org.uk/",
-          str(intensity.index) === "high" || str(intensity.index) === "very high" ? 75 : 40,
-          "Carbon Intensity",
-          str(row?.from) || undefined,
-        ),
-      ];
+      return mapCarbonIntensity(await getJson("https://api.carbonintensity.org.uk/intensity"));
     },
   },
   {
@@ -1142,40 +1243,11 @@ const FEEDS: Feed[] = [
             `https://itunes.apple.com/search?term=${encodeURIComponent(topic.trim())}&media=all&limit=${PER_FEED}`,
           ),
         );
-        return asArray(data?.results)
-          .map((row) => {
-            const s = asRecord(row);
-            if (!s) return null;
-            const name = str(s.trackName) || str(s.collectionName);
-            if (!name) return null;
-            const artist = str(s.artistName);
-            return post(
-              artist ? `${name} — ${artist}` : name,
-              str(s.trackViewUrl) || str(s.collectionViewUrl) || "https://music.apple.com/",
-              55,
-              "iTunes",
-            );
-          })
-          .filter((p): p is Post => Boolean(p));
+        return mapItunesSearch(data);
       }
-      const data = asRecord(
+      return mapItunesCharts(
         await getJson("https://rss.applemarketingtools.com/api/v2/us/music/most-played/10/songs.json"),
       );
-      const feed = asRecord(data?.feed);
-      return asArray(feed?.results)
-        .map((row) => {
-          const s = asRecord(row);
-          const name = str(s?.name);
-          if (!name) return null;
-          return post(
-            `${name} — ${str(s?.artistName)}`,
-            str(s?.url) || "https://music.apple.com/",
-            48,
-            "iTunes",
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
     },
   },
   {
@@ -1183,25 +1255,7 @@ const FEEDS: Feed[] = [
     category: "Social",
     match: ["mastodon"],
     run: async () => {
-      const rows = asArray(await getJson("https://mastodon.social/api/v1/trends/tags?limit=10"));
-      return rows
-        .map((row) => {
-          const t = asRecord(row);
-          const name = str(t?.name);
-          if (!name) return null;
-          const uses = asArray(t?.history).reduce(
-            (sum: number, h) => sum + num(asRecord(h)?.uses),
-            0,
-          );
-          return post(
-            `#${name.replace(/^#/, "")}`,
-            `https://mastodon.social/tags/${encodeURIComponent(name)}`,
-            Math.min(100, Math.log10(uses + 1) * 22),
-            "Mastodon",
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
+      return mapMastodonTags(await getJson("https://mastodon.social/api/v1/trends/tags?limit=10"));
     },
   },
   {
@@ -1230,20 +1284,7 @@ const FEEDS: Feed[] = [
           "https://world.openfoodfacts.org/cgi/search.pl?action=process&sort_by=unique_scans_n&page_size=8&json=1&fields=product_name,code,url,unique_scans_n",
         ),
       );
-      return asArray(data?.products)
-        .map((row) => {
-          const p = asRecord(row);
-          const name = str(p?.product_name);
-          if (!name) return null;
-          return post(
-            name,
-            str(p?.url) || `https://world.openfoodfacts.org/product/${str(p?.code)}`,
-            Math.min(80, num(p?.unique_scans_n) / 50),
-            "Open Food Facts",
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
+      return mapOpenFoodFacts(data);
     },
   },
   {

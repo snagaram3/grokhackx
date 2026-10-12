@@ -352,6 +352,29 @@ async function wikipediaPage(query: string, senseId?: string | null): Promise<Wi
   return { title: display, url, extract, senses };
 }
 
+export function wikiRootFromQuery(revData: unknown, catData: unknown): WikiRoot {
+  const rev =
+    revData && typeof revData === "object" && !Array.isArray(revData)
+      ? (revData as { query?: { pages?: Record<string, { revisions?: { timestamp?: string; user?: string }[] }> } })
+      : null;
+  const page = Object.values(rev?.query?.pages ?? {})[0];
+  const r0 = page?.revisions?.[0];
+  const firstAt = r0?.timestamp ?? null;
+  const firstEditor = r0?.user ?? null;
+
+  const cat =
+    catData && typeof catData === "object" && !Array.isArray(catData)
+      ? (catData as { query?: { pages?: Record<string, { categories?: { title?: string }[] }> } })
+      : null;
+  const catPage = Object.values(cat?.query?.pages ?? {})[0];
+  const parents: string[] = [];
+  for (const c of catPage?.categories ?? []) {
+    const label = (c.title ?? "").replace(/^Category:/, "");
+    if (keepCategory(label)) parents.push(label);
+  }
+  return { firstAt, firstEditor, parents };
+}
+
 async function wikipediaRoot(title: string): Promise<WikiRoot> {
   const encoded = encodeURIComponent(title.replace(/ /g, "_"));
   const revUrl =
@@ -374,31 +397,9 @@ async function wikipediaRoot(title: string): Promise<WikiRoot> {
     }),
   ]);
 
-  let firstAt: string | null = null;
-  let firstEditor: string | null = null;
-  if (revRes.ok) {
-    const rev = (await revRes.json()) as {
-      query?: { pages?: Record<string, { revisions?: { timestamp?: string; user?: string }[] }> };
-    };
-    const page = Object.values(rev.query?.pages ?? {})[0];
-    const r0 = page?.revisions?.[0];
-    firstAt = r0?.timestamp ?? null;
-    firstEditor = r0?.user ?? null;
-  }
-
-  const parents: string[] = [];
-  if (catRes.ok) {
-    const cat = (await catRes.json()) as {
-      query?: { pages?: Record<string, { categories?: { title?: string }[] }> };
-    };
-    const page = Object.values(cat.query?.pages ?? {})[0];
-    for (const c of page?.categories ?? []) {
-      const label = (c.title ?? "").replace(/^Category:/, "");
-      if (keepCategory(label)) parents.push(label);
-    }
-  }
-
-  return { firstAt, firstEditor, parents };
+  const rev = revRes.ok ? await revRes.json() : null;
+  const cat = catRes.ok ? await catRes.json() : null;
+  return wikiRootFromQuery(rev, cat);
 }
 
 export function wikidataTime(raw: string | undefined): string | null {
@@ -408,6 +409,19 @@ export function wikidataTime(raw: string | undefined): string | null {
   const year = Number(m[1]);
   if (!Number.isFinite(year) || year < 1800 || year > 2100) return null;
   return yearIso(year);
+}
+
+export function inceptionFromWikidataClaims(claims: unknown): string | null {
+  const rec =
+    claims && typeof claims === "object" && !Array.isArray(claims)
+      ? (claims as Record<string, { mainsnak?: { datavalue?: { value?: { time?: string } | string } } }[]>)
+      : {};
+  const inceptionClaim = rec.P571?.[0] ?? rec.P580?.[0] ?? rec.P569?.[0];
+  const timeRaw =
+    inceptionClaim && typeof inceptionClaim.mainsnak?.datavalue?.value === "object"
+      ? inceptionClaim.mainsnak.datavalue.value.time
+      : undefined;
+  return wikidataTime(timeRaw);
 }
 
 async function wikidataInception(title: string): Promise<{ at: string; url: string; patents: RootReceipt[] } | null> {
@@ -448,12 +462,7 @@ async function wikidataInception(title: string): Promise<{ at: string; url: stri
     >;
   };
   const claims = ent.entities?.[qid]?.claims ?? {};
-  const inceptionClaim = claims.P571?.[0] ?? claims.P580?.[0] ?? claims.P569?.[0];
-  const timeRaw =
-    inceptionClaim && typeof inceptionClaim.mainsnak?.datavalue?.value === "object"
-      ? inceptionClaim.mainsnak.datavalue.value.time
-      : undefined;
-  const at = wikidataTime(timeRaw);
+  const at = inceptionFromWikidataClaims(claims);
   const patents: RootReceipt[] = [];
   for (const row of claims.P1246 ?? []) {
     const num = row.mainsnak?.datavalue?.value;
