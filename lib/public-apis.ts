@@ -122,6 +122,199 @@ function post(
   );
 }
 
+export function mapOpenMeteo(
+  data: unknown,
+  spots: { lat: number; lon: number; label: string }[],
+  cap = PER_FEED,
+): Post[] {
+  const rows = Array.isArray(data) ? data : [data];
+  const fromRows = rows
+    .map((row, i) => {
+      const rec = asRecord(row);
+      const cur = asRecord(rec?.current);
+      const spot = spots[i] ?? spots[0];
+      if (!cur || !spot || Array.isArray(cur.temperature_2m)) return null;
+      return post(
+        `${spot.label} ${num(cur.temperature_2m)}°C wind ${num(cur.wind_speed_10m)}`,
+        `https://open-meteo.com/en/docs#latitude=${spot.lat}&longitude=${spot.lon}`,
+        40,
+        "Open-Meteo",
+        str(cur.time) || undefined,
+        geoPoint(spot.lat, spot.lon, spot.label),
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+  if (fromRows.length) return fromRows.slice(0, cap);
+  const cur = asRecord(asRecord(rows[0])?.current);
+  if (!cur || !Array.isArray(cur.temperature_2m)) return [];
+  return spots
+    .map((spot, i) =>
+      post(
+        `${spot.label} ${num(asArray(cur.temperature_2m)[i])}°C wind ${num(asArray(cur.wind_speed_10m)[i])}`,
+        `https://open-meteo.com/en/docs#latitude=${spot.lat}&longitude=${spot.lon}`,
+        40,
+        "Open-Meteo",
+        str(asArray(cur.time)[i]) || undefined,
+        geoPoint(spot.lat, spot.lon, spot.label),
+      ),
+    )
+    .slice(0, cap);
+}
+
+export function mapTvMazeSearch(data: unknown): Post[] {
+  return asArray(data)
+    .map((row, i) => {
+      const show = asRecord(asRecord(row)?.show);
+      const name = str(show?.name);
+      if (!name) return null;
+      return post(name, str(show?.url) || "https://www.tvmaze.com/", 80 - i * 4, "TVMaze");
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapTvMazeSchedule(data: unknown): Post[] {
+  return asArray(data)
+    .map((row) => {
+      const r = asRecord(row);
+      const show = asRecord(r?.show) || asRecord(asRecord(r?._embedded)?.show);
+      const name = str(show?.name);
+      if (!name) return null;
+      const ep = str(r?.name);
+      return post(
+        ep ? `${name}: ${ep}` : name,
+        str(show?.url) || "https://www.tvmaze.com/",
+        45,
+        "TVMaze",
+        str(r?.airdate) || undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapOpenLibraryDocs(data: unknown, score = 60): Post[] {
+  return asArray(asRecord(data)?.docs)
+    .map((row) => {
+      const w = asRecord(row);
+      const title = str(w?.title);
+      if (!title) return null;
+      const key = str(w?.key);
+      return post(
+        title,
+        key ? `https://openlibrary.org${key}` : "https://openlibrary.org/",
+        score,
+        "Open Library",
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapOpenLibraryTrending(data: unknown): Post[] {
+  return asArray(asRecord(data)?.works)
+    .map((row) => {
+      const w = asRecord(row);
+      if (!w || !str(w.title)) return null;
+      const key = str(w.key);
+      return post(
+        str(w.title),
+        key ? `https://openlibrary.org${key}` : "https://openlibrary.org/",
+        Math.min(90, num(w.logged_edition) || 50),
+        "Open Library",
+      );
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapDevToArticles(data: unknown): Post[] {
+  return asArray(data)
+    .map((row) => {
+      const a = asRecord(row);
+      if (!a || !str(a.title) || !str(a.url)) return null;
+      return post(str(a.title), str(a.url), Math.min(100, num(a.positive_reactions_count)), "Dev.to");
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapSpaceflightNews(data: unknown): Post[] {
+  return asArray(asRecord(data)?.results)
+    .map((row) => {
+      const a = asRecord(row);
+      if (!a || !str(a.title) || !str(a.url)) return null;
+      return post(str(a.title), str(a.url), 60, "Spaceflight News", str(a.published_at) || undefined);
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapFrankfurter(data: unknown): Post[] {
+  const rates = asRecord(asRecord(data)?.rates);
+  if (!rates) return [];
+  return Object.entries(rates).map(([code, value]) =>
+    post(`USD/${code} ${num(value)}`, "https://www.frankfurter.app/", 35, "Frankfurter"),
+  );
+}
+
+export function mapLobsters(data: unknown): Post[] {
+  return asArray(data)
+    .map((row) => {
+      const s = asRecord(row);
+      if (!s || !str(s.title) || !str(s.url)) return null;
+      return post(str(s.title), str(s.url), Math.min(100, num(s.score) * 4), "Lobsters");
+    })
+    .filter((p): p is Post => Boolean(p))
+    .slice(0, PER_FEED);
+}
+
+export function mapStackOverflow(data: unknown): Post[] {
+  return asArray(asRecord(data)?.items)
+    .map((row) => {
+      const i = asRecord(row);
+      const title = str(i?.title);
+      if (!title) return null;
+      return post(
+        title,
+        str(i?.link) || "https://stackoverflow.com/",
+        Math.min(100, num(i?.score) + 20),
+        "Stack Overflow",
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapOpenAlex(data: unknown): Post[] {
+  return asArray(asRecord(data)?.results)
+    .map((row) => {
+      const w = asRecord(row);
+      const title = str(w?.display_name);
+      if (!title) return null;
+      const href = str(w?.id) || "https://openalex.org/";
+      return post(title, href, 55, "OpenAlex");
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
+export function mapCryptoCompareNews(data: unknown): Post[] {
+  return asArray(asRecord(data)?.Data)
+    .slice(0, PER_FEED)
+    .map((row) => {
+      const n = asRecord(row);
+      const title = str(n?.title);
+      if (!title) return null;
+      const ts = num(n?.published_on);
+      return post(
+        title,
+        str(n?.url) || "https://www.cryptocompare.com/news/",
+        52,
+        "CryptoCompare",
+        ts ? new Date(ts * 1000).toISOString() : undefined,
+      );
+    })
+    .filter((p): p is Post => Boolean(p));
+}
+
 async function getText(url: string, ms = FEED_MS): Promise<string> {
   const res = await fetch(url, {
     cache: "no-store",
@@ -636,41 +829,13 @@ const FEEDS: Feed[] = [
     match: ["open-meteo", "open meteo"],
     run: async (city) => {
       const spots = weatherSpots(city);
-      const data = await getJson(
-        `https://api.open-meteo.com/v1/forecast?latitude=${spots.map((s) => s.lat).join(",")}&longitude=${spots.map((s) => s.lon).join(",")}&current=temperature_2m,weather_code,wind_speed_10m`,
+      return mapOpenMeteo(
+        await getJson(
+          `https://api.open-meteo.com/v1/forecast?latitude=${spots.map((s) => s.lat).join(",")}&longitude=${spots.map((s) => s.lon).join(",")}&current=temperature_2m,weather_code,wind_speed_10m`,
+        ),
+        spots,
+        city === "all" ? 12 : PER_FEED,
       );
-      const rows = Array.isArray(data) ? data : [data];
-      const fromRows = rows
-        .map((row, i) => {
-          const rec = asRecord(row);
-          const cur = asRecord(rec?.current);
-          const spot = spots[i] ?? spots[0];
-          if (!cur || !spot || Array.isArray(cur.temperature_2m)) return null;
-          return post(
-            `${spot.label} ${num(cur.temperature_2m)}°C wind ${num(cur.wind_speed_10m)}`,
-            `https://open-meteo.com/en/docs#latitude=${spot.lat}&longitude=${spot.lon}`,
-            40,
-            "Open-Meteo",
-            str(cur.time) || undefined,
-            geoPoint(spot.lat, spot.lon, spot.label),
-          );
-        })
-        .filter((p): p is Post => Boolean(p));
-      if (fromRows.length) return fromRows.slice(0, city === "all" ? 12 : PER_FEED);
-      const cur = asRecord(asRecord(rows[0])?.current);
-      if (!cur || !Array.isArray(cur.temperature_2m)) return [];
-      return spots
-        .map((spot, i) =>
-          post(
-            `${spot.label} ${num(asArray(cur.temperature_2m)[i])}°C wind ${num(asArray(cur.wind_speed_10m)[i])}`,
-            `https://open-meteo.com/en/docs#latitude=${spot.lat}&longitude=${spot.lon}`,
-            40,
-            "Open-Meteo",
-            str(asArray(cur.time)[i]) || undefined,
-            geoPoint(spot.lat, spot.lon, spot.label),
-          ),
-        )
-        .slice(0, city === "all" ? 12 : PER_FEED);
     },
   },
   {
@@ -680,44 +845,18 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const rows = asArray(
+        return mapTvMazeSearch(
           await getJson(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(topic.trim())}`),
         );
-        return rows
-          .map((row, i) => {
-            const show = asRecord(asRecord(row)?.show);
-            const name = str(show?.name);
-            if (!name) return null;
-            return post(name, str(show?.url) || "https://www.tvmaze.com/", 80 - i * 4, "TVMaze");
-          })
-          .filter((p): p is Post => Boolean(p))
-          .slice(0, PER_FEED);
       }
       const country = tvCountry(_city);
-      const rows = asArray(
+      return mapTvMazeSchedule(
         await getJson(
           country
             ? `https://api.tvmaze.com/schedule?country=${encodeURIComponent(country)}`
             : "https://api.tvmaze.com/schedule/web",
         ),
       );
-      return rows
-        .map((row) => {
-          const r = asRecord(row);
-          const show = asRecord(r?.show) || asRecord(asRecord(r?._embedded)?.show);
-          const name = str(show?.name);
-          if (!name) return null;
-          const ep = str(r?.name);
-          return post(
-            ep ? `${name}: ${ep}` : name,
-            str(show?.url) || "https://www.tvmaze.com/",
-            45,
-            "TVMaze",
-            str(r?.airdate) || undefined,
-          );
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
     },
   },
   {
@@ -727,56 +866,22 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asRecord(
+        return mapOpenLibraryDocs(
           await getJson(
             `https://openlibrary.org/search.json?q=${encodeURIComponent(topic.trim())}&limit=${PER_FEED}`,
           ),
         );
-        return asArray(data?.docs)
-          .map((row) => {
-            const w = asRecord(row);
-            const title = str(w?.title);
-            if (!title) return null;
-            const key = str(w?.key);
-            return post(
-              title,
-              key ? `https://openlibrary.org${key}` : "https://openlibrary.org/",
-              60,
-              "Open Library",
-            );
-          })
-          .filter((p): p is Post => Boolean(p));
       }
       try {
-        const data = asRecord(await getJson("https://openlibrary.org/trending/daily.json"));
-        const trending = asArray(data?.works)
-          .map((row) => {
-            const w = asRecord(row);
-            if (!w || !str(w.title)) return null;
-            const key = str(w.key);
-            return post(
-              str(w.title),
-              key ? `https://openlibrary.org${key}` : "https://openlibrary.org/",
-              Math.min(90, num(w.logged_edition) || 50),
-              "Open Library",
-            );
-          })
-          .filter((p): p is Post => Boolean(p))
-          .slice(0, PER_FEED);
+        const trending = mapOpenLibraryTrending(await getJson("https://openlibrary.org/trending/daily.json"));
         if (trending.length) return trending;
       } catch {
         /* trending often times out from serverless */
       }
-      const fallback = asRecord(await getJson("https://openlibrary.org/search.json?q=language%3Aeng&limit=8"));
-      return asArray(fallback?.docs)
-        .map((row) => {
-          const w = asRecord(row);
-          const title = str(w?.title);
-          if (!title) return null;
-          const key = str(w?.key);
-          return post(title, key ? `https://openlibrary.org${key}` : "https://openlibrary.org/", 50, "Open Library");
-        })
-        .filter((p): p is Post => Boolean(p));
+      return mapOpenLibraryDocs(
+        await getJson("https://openlibrary.org/search.json?q=language%3Aeng&limit=8"),
+        50,
+      );
     },
   },
   {
@@ -789,15 +894,7 @@ const FEEDS: Feed[] = [
       const url = tag
         ? `https://dev.to/api/articles?per_page=12&tag=${encodeURIComponent(tag)}`
         : "https://dev.to/api/articles?per_page=12&top=1";
-      const rows = asArray(await getJson(url));
-      return rows
-        .map((row) => {
-          const a = asRecord(row);
-          if (!a || !str(a.title) || !str(a.url)) return null;
-          return post(str(a.title), str(a.url), Math.min(100, num(a.positive_reactions_count)), "Dev.to");
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
+      return mapDevToArticles(await getJson(url));
     },
   },
   {
@@ -852,15 +949,7 @@ const FEEDS: Feed[] = [
       const q = topic?.trim()
         ? `https://api.spaceflightnewsapi.net/v4/articles/?limit=12&search=${encodeURIComponent(topic.trim())}`
         : "https://api.spaceflightnewsapi.net/v4/articles/?limit=12";
-      const data = asRecord(await getJson(q));
-      return asArray(data?.results)
-        .map((row) => {
-          const a = asRecord(row);
-          if (!a || !str(a.title) || !str(a.url)) return null;
-          return post(str(a.title), str(a.url), 60, "Spaceflight News", str(a.published_at) || undefined);
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
+      return mapSpaceflightNews(await getJson(q));
     },
   },
   {
@@ -1045,14 +1134,7 @@ const FEEDS: Feed[] = [
     name: "Frankfurter",
     category: "Currency Exchange",
     match: ["frankfurter"],
-    run: async () => {
-      const data = asRecord(await getJson("https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY,INR"));
-      const rates = asRecord(data?.rates);
-      if (!rates) return [];
-      return Object.entries(rates).map(([code, value]) =>
-        post(`USD/${code} ${num(value)}`, "https://www.frankfurter.app/", 35, "Frankfurter"),
-      );
-    },
+    run: async () => mapFrankfurter(await getJson("https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY,INR")),
   },
   {
     name: "CheapShark",
@@ -1208,17 +1290,7 @@ const FEEDS: Feed[] = [
     name: "Lobsters",
     category: "Social",
     match: ["lobsters", "lobste.rs"],
-    run: async () => {
-      const rows = asArray(await getJson("https://lobste.rs/hottest.json"));
-      return rows
-        .map((row) => {
-          const s = asRecord(row);
-          if (!s || !str(s.title) || !str(s.url)) return null;
-          return post(str(s.title), str(s.url), Math.min(100, num(s.score) * 4), "Lobsters");
-        })
-        .filter((p): p is Post => Boolean(p))
-        .slice(0, PER_FEED);
-    },
+    run: async () => mapLobsters(await getJson("https://lobste.rs/hottest.json")),
   },
   {
     name: "Open Food Facts",
@@ -1485,20 +1557,7 @@ const FEEDS: Feed[] = [
       const url = q
         ? `https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&q=${encodeURIComponent(q)}&site=stackoverflow&pagesize=${PER_FEED}`
         : `https://api.stackexchange.com/2.3/questions?order=desc&sort=hot&site=stackoverflow&pagesize=${PER_FEED}`;
-      const data = asRecord(await getJson(url));
-      return asArray(data?.items)
-        .map((row) => {
-          const i = asRecord(row);
-          const title = str(i?.title);
-          if (!title) return null;
-          return post(
-            title,
-            str(i?.link) || "https://stackoverflow.com/",
-            Math.min(100, num(i?.score) + 20),
-            "Stack Overflow",
-          );
-        })
-        .filter((p): p is Post => Boolean(p));
+      return mapStackOverflow(await getJson(url));
     },
   },
   {
@@ -1508,18 +1567,9 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       const q = topic?.trim() || "artificial intelligence";
-      const data = asRecord(
+      return mapOpenAlex(
         await getJson(`https://api.openalex.org/works?search=${encodeURIComponent(q)}&per_page=${PER_FEED}`),
       );
-      return asArray(data?.results)
-        .map((row) => {
-          const w = asRecord(row);
-          const title = str(w?.display_name);
-          if (!title) return null;
-          const href = str(w?.id) || "https://openalex.org/";
-          return post(title, href, 55, "OpenAlex");
-        })
-        .filter((p): p is Post => Boolean(p));
     },
   },
   {
@@ -1558,25 +1608,8 @@ const FEEDS: Feed[] = [
     name: "CryptoCompare",
     category: "Cryptocurrency",
     match: ["cryptocompare"],
-    run: async () => {
-      const data = asRecord(await getJson("https://min-api.cryptocompare.com/data/v2/news/?lang=EN"));
-      return asArray(data?.Data)
-        .slice(0, PER_FEED)
-        .map((row) => {
-          const n = asRecord(row);
-          const title = str(n?.title);
-          if (!title) return null;
-          const ts = num(n?.published_on);
-          return post(
-            title,
-            str(n?.url) || "https://www.cryptocompare.com/news/",
-            52,
-            "CryptoCompare",
-            ts ? new Date(ts * 1000).toISOString() : undefined,
-          );
-        })
-        .filter((p): p is Post => Boolean(p));
-    },
+    run: async () =>
+      mapCryptoCompareNews(await getJson("https://min-api.cryptocompare.com/data/v2/news/?lang=EN")),
   },
   {
     name: "Bluesky",
