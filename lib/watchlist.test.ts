@@ -14,6 +14,7 @@ import { fitHistGb, occupancyVector } from "./histgb";
 import { deltaLabel, pct, rollupWatchlist, sortInsights } from "./watchlist-metrics";
 import { payloadFromQrImageUrl } from "./qr";
 import { insightForQuery, leadTopic, postsInBucket, relatedPrints, topicPosts, topicsInBucket } from "./watchlist-lookup";
+import { postsToReceipts } from "./watchlist-store";
 import type { PoiInsight, TimeBucket, Topic, WatchlistEntity } from "./types";
 
 function entity(label: string, extra: string[] = []): WatchlistEntity {
@@ -415,4 +416,52 @@ test("memory model blobs round-trip HistGB JSON", async () => {
   const payload = { kind: "histgb", lr: 0.25, stumps: [], samples: 16, classes: 3, trainedAt: "2026-09-01T00:00:00.000Z" };
   await writeModelBlob(id, payload, 16);
   assert.deepEqual(await readModelBlob(id), payload);
+});
+
+test("postsToReceipts copies the memory tape without inventing a WHY or dropping blank urls", () => {
+  assert.deepEqual(postsToReceipts(null), []);
+  const camry = topic("Camry", [
+    {
+      title: "Camry hybrid recall",
+      url: "https://www.nhtsa.gov/camry",
+      createdAt: "2026-08-26T08:00:00.000Z",
+    },
+    {
+      title: "untitled crumb",
+      url: "",
+      createdAt: "2026-08-26T09:00:00.000Z",
+    },
+  ]);
+  camry.platforms.hn = {
+    score: 40,
+    posts: [
+      {
+        platform: "hn",
+        title: "Camry on HN",
+        url: "https://news.ycombinator.com/item?id=1",
+        score: 40,
+        createdAt: "2026-08-26T07:00:00.000Z",
+        tool: "collect_hn",
+        collectedAt: "2026-08-26T07:05:00.000Z",
+        sourceApi: "HN",
+      },
+    ],
+  };
+  const receipts = postsToReceipts({
+    topics: [camry],
+    updatedAt: "2026-08-26T12:00:00.000Z",
+    sources: { x: false, reddit: false, hn: true, public: true },
+    degraded: [],
+  });
+  assert.equal(receipts.length, 3);
+  assert.ok(receipts.every((r) => r.snapshotId === "2026-08-26T12:00:00.000Z"));
+  assert.equal(receipts.find((r) => r.platform === "hn")?.tool, "collect_hn");
+  assert.equal(receipts.find((r) => r.url === "")?.title, "untitled crumb");
+  const emptyTape = postsToReceipts({
+    topics: [],
+    updatedAt: "",
+    sources: { x: false, reddit: false, hn: false, public: false },
+    degraded: [],
+  });
+  assert.deepEqual(emptyTape, []);
 });

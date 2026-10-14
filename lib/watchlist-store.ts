@@ -220,7 +220,7 @@ async function loadReceipts(db: PgPool | null): Promise<PoiReceipt[]> {
   }
 }
 
-function postsToReceipts(payload: TrendsPayload | null): PoiReceipt[] {
+export function postsToReceipts(payload: TrendsPayload | null): PoiReceipt[] {
   if (!payload) return [];
   const snap = payload.updatedAt || "memory";
   const posts: Post[] = payload.topics.flatMap((t) =>
