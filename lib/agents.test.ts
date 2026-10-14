@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { collectorSummary, healthFrom, validatorAgent } from "./agents";
+import {
+  collectorSummary,
+  healthFrom,
+  mergedPublicPosts,
+  validatorAgent,
+  type SourceResult,
+} from "./agents";
 import type { Post, Topic } from "./types";
 
 function emptySlice() {
@@ -77,4 +83,84 @@ test("healthFrom marks offline sources without inventing a WHY", () => {
     ]),
     "collector: x fail(0) hn ok(2)",
   );
+});
+
+function source(
+  name: SourceResult["source"],
+  extra: Partial<SourceResult> = {},
+): SourceResult {
+  return {
+    source: name,
+    ok: extra.ok ?? false,
+    count: extra.count ?? (extra.posts?.length ?? 0),
+    posts: extra.posts ?? [],
+    fallback: extra.fallback,
+    fallbackPosts: extra.fallbackPosts,
+  };
+}
+
+test("mergedPublicPosts concatenates public tape with X Trends fallback and never stamps fallback as X", () => {
+  const trends = post("Camry Google Trends", "https://trends.google.com/camry", "public");
+  const nhtsa = post("Camry recall", "https://www.nhtsa.gov/camry");
+  const xNative = post("Camry tweet", "https://x.com/camry", "x");
+  const merged = mergedPublicPosts(
+    source("x", {
+      posts: [xNative],
+      fallback: "google trends",
+      fallbackPosts: [trends],
+    }),
+    source("public", { ok: true, posts: [nhtsa] }),
+  );
+  assert.deepEqual(
+    merged.map((p) => p.url),
+    ["https://www.nhtsa.gov/camry", "https://trends.google.com/camry"],
+  );
+  assert.ok(merged.every((p) => p.platform === "public"));
+  assert.equal(
+    mergedPublicPosts(source("x", { posts: [xNative] }), source("public", { posts: [nhtsa] })).length,
+    1,
+  );
+  assert.deepEqual(
+    mergedPublicPosts(source("x"), source("public")).map((p) => p.url),
+    [],
+  );
+});
+
+test("healthFrom X Trends fallback marks public live, then a later public fail overwrites it", () => {
+  const trends = post("Camry Google Trends", "https://trends.google.com/camry", "public");
+  const xFallback = source("x", {
+    ok: false,
+    fallback: "google trends",
+    fallbackPosts: [trends],
+  });
+  const livePublic = healthFrom([
+    xFallback,
+    source("reddit", { ok: true, count: 1 }),
+    source("hn", { ok: true, count: 1 }),
+  ]);
+  assert.equal(livePublic.sources.x, false);
+  assert.equal(livePublic.sources.public, true);
+  assert.deepEqual(livePublic.degraded, ["x offline · google trends fallback"]);
+  assert.equal(
+    collectorSummary([xFallback, source("public", { ok: true, count: 3, posts: [post("n", "https://n.test/1")] })]),
+    "collector: x fail(0) google trends(1) public ok(3)",
+  );
+
+  const overwritten = healthFrom([
+    xFallback,
+    source("reddit", { ok: true, count: 1 }),
+    source("hn", { ok: true, count: 1 }),
+    source("public", { ok: false }),
+  ]);
+  assert.equal(overwritten.sources.public, false);
+  assert.deepEqual(overwritten.degraded, [
+    "x offline · google trends fallback",
+    "public offline",
+  ]);
+
+  const emptyFallback = healthFrom([
+    source("x", { ok: false, fallback: "google trends", fallbackPosts: [] }),
+  ]);
+  assert.equal(emptyFallback.sources.public, false);
+  assert.deepEqual(emptyFallback.degraded, ["x offline"]);
 });

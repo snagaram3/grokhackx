@@ -41,6 +41,39 @@ test("plugTopicFromPosts keeps Camry exact and does not treat camera as a hit", 
   assert.equal(near[0].platforms.public.posts.length, 0);
 });
 
+test("plugTopicFromPosts Camry exact keeps Toyota Corolla via alias overlap and still drops camera", () => {
+  const intent = inferQueryIntent("Camry");
+  const corollaA = post("Toyota Corolla recall campaign");
+  const corollaB = {
+    ...post("Toyota Corolla recall campaign"),
+    url: "https://nhtsa.test/corolla-b",
+  };
+  const plugged = plugTopicFromPosts(
+    "Camry",
+    [
+      post("New Camry hybrid recall"),
+      corollaA,
+      corollaB,
+      post("camera sensor firmware"),
+    ],
+    intent,
+  );
+  assert.equal(plugged[0].match, "exact");
+  assert.deepEqual(
+    plugged[0].platforms.public.posts.map((p) => p.url),
+    [
+      "https://a.test/New%20Camry%20hybrid%20recall",
+      corollaA.url,
+      corollaB.url,
+    ],
+  );
+  assert.equal(plugged.length, 1);
+  assert.equal(
+    plugged.some((t) => t.platforms.public.posts.some((p) => /camera/i.test(p.title))),
+    false,
+  );
+});
+
 test("neighborTopics only returns tape prints that share the query tokens", () => {
   const camry: Topic = {
     id: "camry",
