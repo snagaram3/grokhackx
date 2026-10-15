@@ -59,7 +59,8 @@ interface Feed {
   run: (city: CityId, topic?: string) => Promise<Post[]>;
 }
 
-function googleNewsRss(q: string, edition = "hl=en&gl=GB&ceid=GB:en"): string {
+/** Google News search RSS. BBC/Reuters/Al Jazeera/NHK reuse this with `site:` queries. */
+export function googleNewsRss(q: string, edition = "hl=en&gl=GB&ceid=GB:en"): string {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&${edition}`;
 }
 
@@ -1687,7 +1688,8 @@ export function publicApiFeedNames(): string[] {
   return FEEDS.map((f) => f.name);
 }
 
-function selectFeeds(topic?: string, enabledSources?: string[]): Feed[] {
+/** World tape prefers CORE_TAPE; a plugged phrase prefers topicAware feeds. YouTube is omitted without a key. */
+export function selectFeeds(topic?: string, enabledSources?: string[]): Feed[] {
   const q = topic?.trim();
   let available = FEEDS.filter((f) => !f.include || f.include(q));
   available = filterByEnabledSources(available, enabledSources);
