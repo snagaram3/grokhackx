@@ -41,6 +41,32 @@ test("plugTopicFromPosts keeps Camry exact and does not treat camera as a hit", 
   assert.equal(near[0].platforms.public.posts.length, 0);
 });
 
+test("plugTopicFromPosts leftover extras hydrate near topics at titleScore 1.4 and drop camera", () => {
+  const query = "ai ml zz yy xx ww vv uu";
+  const hit = "ai ml zz yy xx ww vv uu full phrase";
+  const leftover = "ai ml zz plus extra filler words here now";
+  const topics = plugTopicFromPosts(query, [
+    post(hit),
+    post(leftover),
+    post(leftover),
+    post("camera sensor firmware"),
+  ]);
+  assert.equal(topics[0].match, "exact");
+  assert.deepEqual(
+    topics[0].platforms.public.posts.map((p) => p.title),
+    [hit],
+  );
+  const extras = topics.slice(1);
+  assert.equal(extras.length, 1);
+  assert.equal(extras[0].match, "near");
+  assert.equal(extras[0].label, leftover);
+  assert.equal(extras[0].platforms.public.posts.length, 1);
+  assert.equal(
+    topics.some((t) => t.platforms.public.posts.some((p) => /camera/i.test(p.title))),
+    false,
+  );
+});
+
 test("neighborTopics only returns tape prints that share the query tokens", () => {
   const camry: Topic = {
     id: "camry",
