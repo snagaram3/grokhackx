@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loadPublicApiCatalog } from "@/lib/public-apis";
+import { loadPublicApiCatalog, noAuth } from "@/lib/public-apis";
 
 export const dynamic = "force-dynamic";
 
@@ -7,10 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const catalog = await loadPublicApiCatalog();
-    const open = catalog.filter((e) => {
-      const auth = e.auth.trim().toLowerCase().replace(/[`*]/g, "");
-      return e.https && (auth === "no" || auth === "none" || auth === "" || auth === "null");
-    });
+    const open = catalog.filter((e) => noAuth(e.auth) && e.https);
     const categories = [...new Set(catalog.map((e) => e.category))];
     return NextResponse.json({
       source: "https://github.com/public-apis/public-apis",

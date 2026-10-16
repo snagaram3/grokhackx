@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { classifyTopic } from "./desk";
-import { divergenceOf, slug, totalScore, velocityOf } from "./metrics";
+import { divergenceOf, peakHourCT, slug, totalScore, velocityOf } from "./metrics";
 import { confidenceOf, forecastNode, outlookFromScores, type HistoryPoint } from "./predict";
 import { buildSentiment } from "./sentiment";
 import type { MindNode, Post, Topic } from "./types";
@@ -122,6 +122,15 @@ test("buildSentiment uses word boundaries and abstains on a single title", () =>
   assert.ok(neg.overall.neg >= 2);
   assert.ok(neg.overall.risk >= 1);
   assert.ok(neg.hits.some((h) => h.title.includes("recall")));
+});
+
+test("peakHourCT with 10 unparseable stamps is 12am (hour 0), not an abstain", () => {
+  const junk = Array.from({ length: 10 }, () => post("Camry hybrid", { createdAt: "not-a-date" }));
+  assert.equal(peakHourCT(junk), "12am");
+  assert.equal(
+    peakHourCT(junk.slice(0, 9)),
+    undefined,
+  );
 });
 
 test("slug, totalScore, velocityOf, and divergenceOf stay threshold-stable", () => {

@@ -43,8 +43,13 @@ export function uniquePhrases(values: Array<string | null | undefined>): string[
   return out;
 }
 
+/** Hourly watchlist lookup. Phrase is encoded; the origin is not. */
+export function trendsLookupUrl(origin: string, phrase: string): string {
+  return `${origin}/api/trends?topic=${encodeURIComponent(phrase)}`;
+}
+
 async function lookupTape(origin: string, phrase: string): Promise<TrendsPayload | null> {
-  const url = `${origin}/api/trends?topic=${encodeURIComponent(phrase)}`;
+  const url = trendsLookupUrl(origin, phrase);
   const res = await fetch(url, {
     signal: AbortSignal.timeout(LOOKUP_MS),
     cache: "no-store",
