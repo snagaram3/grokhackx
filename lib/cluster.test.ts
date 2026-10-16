@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { neighborTopics, plugTopicFromPosts } from "./cluster";
-import { inferQueryIntent } from "./query";
+import { inferQueryIntent, type QueryIntent } from "./query";
 import type { Post, Topic } from "./types";
 
 function emptySlice() {
@@ -39,6 +39,29 @@ test("plugTopicFromPosts keeps Camry exact and does not treat camera as a hit", 
   const near = plugTopicFromPosts("Camry", [post("camera sensor firmware")], intent);
   assert.notEqual(near[0].match, "exact");
   assert.equal(near[0].platforms.public.posts.length, 0);
+});
+
+test("plugTopicFromPosts near buckets keep titleScore 1.2 alias overlap and drop weaker crumbs", () => {
+  const intent = {
+    aliases: ["alpha bravo charlie delta echo foxtrot golf hotel india juliet"],
+  } as QueryIntent;
+  const kept = "alpha bravo charlie zulu yankee whiskey victor uniform tango romeo";
+  const weak = "alpha bravo zulu yankee whiskey victor uniform tango romeo kilo";
+  const topics = plugTopicFromPosts(
+    "zzcoverageplugnear",
+    [post(kept), post(weak), post("camera sensor firmware")],
+    intent,
+  );
+  assert.equal(topics[0].match, "near");
+  assert.deepEqual(
+    topics[0].platforms.public.posts.map((p) => p.title),
+    [kept],
+  );
+  assert.equal(topics.length, 1);
+  assert.equal(
+    topics[0].platforms.public.posts.some((p) => /camera/i.test(p.title)),
+    false,
+  );
 });
 
 test("neighborTopics only returns tape prints that share the query tokens", () => {

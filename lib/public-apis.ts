@@ -191,7 +191,8 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function noAuth(auth: string): boolean {
+/** Catalog rows with no API key. GET /api/public-apis uses this to list open HTTPS feeds. */
+export function noAuth(auth: string): boolean {
   const a = auth.trim().toLowerCase().replace(/[`*]/g, "");
   return a === "no" || a === "none" || a === "" || a === "null";
 }
@@ -238,14 +239,30 @@ export async function loadPublicApiCatalog(): Promise<PublicApiEntry[]> {
   return entries;
 }
 
-function utcYmd(daysAgo: number) {
-  const d = new Date();
+/** UTC Y/M/D for Wikipedia featured + pageviews. `now` is test-only; production omits it. */
+export function utcYmd(daysAgo: number, now = new Date()) {
+  const d = new Date(now);
   d.setUTCDate(d.getUTCDate() - daysAgo);
   return {
     y: d.getUTCFullYear(),
     m: String(d.getUTCMonth() + 1).padStart(2, "0"),
     day: String(d.getUTCDate()).padStart(2, "0"),
   };
+}
+
+export function wikiFeaturedUrl(daysAgo: number, now = new Date()): string {
+  const { y, m, day } = utcYmd(daysAgo, now);
+  return `https://en.wikipedia.org/api/rest_v1/feed/featured/${y}/${m}/${day}`;
+}
+
+export function wikiPageviewsUrl(daysAgo: number, now = new Date()): string {
+  const { y, m, day } = utcYmd(daysAgo, now);
+  return `https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia/all-access/${y}/${m}/${day}`;
+}
+
+export function arxivQueryUrl(topic?: string): string {
+  const q = topic?.trim() || "cat:cs.AI";
+  return `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(q)}&start=0&max_results=${PER_FEED}&sortBy=submittedDate&sortOrder=descending`;
 }
 
 function youtubeKey(): string {
@@ -372,24 +389,16 @@ function wikiPostsFromPageviews(data: unknown): Post[] {
 
 async function wikipediaTape(): Promise<Post[]> {
   for (const ago of [0, 1, 2]) {
-    const { y, m, day } = utcYmd(ago);
     try {
-      const posts = wikiPostsFromFeatured(
-        await getJson(`https://en.wikipedia.org/api/rest_v1/feed/featured/${y}/${m}/${day}`),
-      );
+      const posts = wikiPostsFromFeatured(await getJson(wikiFeaturedUrl(ago)));
       if (posts.length) return posts;
     } catch {
       /* try older featured, then pageviews */
     }
   }
   for (const ago of [2, 3, 4, 5, 6]) {
-    const { y, m, day } = utcYmd(ago);
     try {
-      const posts = wikiPostsFromPageviews(
-        await getJson(
-          `https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia/all-access/${y}/${m}/${day}`,
-        ),
-      );
+      const posts = wikiPostsFromPageviews(await getJson(wikiPageviewsUrl(ago)));
       if (posts.length) return posts;
     } catch {
       /* keep walking back */
@@ -1391,15 +1400,7 @@ const FEEDS: Feed[] = [
     category: "Science & Math",
     match: ["arxiv"],
     topicAware: true,
-    run: async (_city, topic) => {
-      const q = topic?.trim() || "cat:cs.AI";
-      return parseRss(
-        await getText(
-          `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(q)}&start=0&max_results=${PER_FEED}&sortBy=submittedDate&sortOrder=descending`,
-        ),
-        "arXiv",
-      );
-    },
+    run: async (_city, topic) => parseRss(await getText(arxivQueryUrl(topic)), "arXiv"),
   },
   {
     name: "ReliefWeb",

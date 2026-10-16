@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { categoryForTape } from "./collect";
-import { uniquePhrases } from "./hourly-collect";
+import { trendsLookupUrl, uniquePhrases } from "./hourly-collect";
 import type { BoosterTopicBrief, Topic, TrendsPayload } from "./types";
 
 function topic(id: string, label: string, extra: Partial<Topic> = {}): Topic {
@@ -61,6 +61,21 @@ function brief(topicId: string, category: BoosterTopicBrief["category"]): Booste
     },
   };
 }
+
+test("trendsLookupUrl encodes the phrase and keeps the origin path intact", () => {
+  assert.equal(
+    trendsLookupUrl("https://hawkxai.example", "Camry"),
+    "https://hawkxai.example/api/trends?topic=Camry",
+  );
+  assert.equal(
+    trendsLookupUrl("https://hawkxai.example", "Toyota Camry"),
+    "https://hawkxai.example/api/trends?topic=Toyota%20Camry",
+  );
+  assert.equal(
+    trendsLookupUrl("http://localhost:3001", "site:bbc.com Camry"),
+    "http://localhost:3001/api/trends?topic=site%3Abbc.com%20Camry",
+  );
+});
 
 test("uniquePhrases trims, case-folds, drops crumbs, and caps at four", () => {
   assert.deepEqual(uniquePhrases([null, " ", "a", "Camry", "camry", "Tesla"]), ["Camry", "Tesla"]);
