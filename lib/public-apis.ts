@@ -252,6 +252,16 @@ function youtubeKey(): string {
   return process.env.YOUTUBE_API_KEY?.trim() || "";
 }
 
+/** Search URL. `q` and `key` are encoded; `maxResults` is PER_FEED (8). */
+export function youtubeSearchUrl(q: string, key: string): string {
+  return `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_FEED}&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key)}`;
+}
+
+/** Most-popular URL. `regionCode` is interpolated raw (city codes are A–Z); `key` is encoded. */
+export function youtubePopularUrl(region: string, key: string): string {
+  return `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode=${region}&maxResults=${PER_FEED}&key=${encodeURIComponent(key)}`;
+}
+
 const MODEL_MAKE: Record<string, { make: string; model: string }> = {
   camry: { make: "toyota", model: "camry" },
   corolla: { make: "toyota", model: "corolla" },
@@ -317,12 +327,17 @@ function mapGdeltArticles(data: unknown): Post[] {
 
 let gdeltTape: { exp: number; posts: Promise<Post[]> } | null = null;
 
-async function fetchGdelt(topic?: string): Promise<Post[]> {
+/** GDELT ArtList URL. Empty/`  ` is world `sourcelang:english`; a topic is appended before that filter. */
+export function gdeltQueryUrl(topic?: string): string {
   const q = topic?.trim() ? `${topic.trim()} sourcelang:english` : "sourcelang:english";
-  const url =
+  return (
     `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}` +
-    `&mode=ArtList&maxrecords=20&format=json&sort=DateDesc&timespan=24h`;
-  return mapGdeltArticles(await getJson(url));
+    `&mode=ArtList&maxrecords=20&format=json&sort=DateDesc&timespan=24h`
+  );
+}
+
+async function fetchGdelt(topic?: string): Promise<Post[]> {
+  return mapGdeltArticles(await getJson(gdeltQueryUrl(topic)));
 }
 
 function wikiPostsFromFeatured(data: unknown): Post[] {
@@ -368,6 +383,11 @@ function wikiPostsFromPageviews(data: unknown): Post[] {
     })
     .filter((p): p is Post => Boolean(p))
     .slice(0, PER_FEED);
+}
+
+/** Topic Wikipedia opensearch. `limit=10` (not PER_FEED 8). Production only calls this when `topic` trims non-empty. */
+export function wikiOpenSearchUrl(topic: string): string {
+  return `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(topic.trim())}&limit=10&namespace=0&format=json`;
 }
 
 async function wikipediaTape(): Promise<Post[]> {
@@ -429,25 +449,27 @@ function mapBskyFeed(data: unknown): Post[] {
     .slice(0, PER_FEED);
 }
 
+/** Bluesky search. `limit` is PER_FEED (8). */
+export function bskySearchUrl(q: string): string {
+  return `https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(q)}&limit=${PER_FEED}`;
+}
+
+/** What's-hot generator. `feed` encodes the AT-URI; `limit=25` (not PER_FEED). */
+export function bskyHotUrl(): string {
+  return `https://public.api.bsky.app/xrpc/app.bsky.feed.getFeed?feed=${encodeURIComponent(BSKY_HOT)}&limit=25`;
+}
+
 async function blueskyPosts(topic?: string): Promise<Post[]> {
   const q = topic?.trim();
   if (q) {
     try {
-      const hit = mapBskySearch(
-        await getJson(
-          `https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(q)}&limit=${PER_FEED}`,
-        ),
-      );
+      const hit = mapBskySearch(await getJson(bskySearchUrl(q)));
       if (hit.length) return hit;
     } catch {
       /* search is Cloudflare-blocked from some clouds; fall through to what's-hot */
     }
   }
-  const hot = mapBskyFeed(
-    await getJson(
-      `https://public.api.bsky.app/xrpc/app.bsky.feed.getFeed?feed=${encodeURIComponent(BSKY_HOT)}&limit=25`,
-    ),
-  );
+  const hot = mapBskyFeed(await getJson(bskyHotUrl()));
   if (q) {
     const needle = q.toLowerCase();
     return hot.filter((p) => p.title.toLowerCase().includes(needle)).slice(0, PER_FEED);
@@ -476,11 +498,7 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asArray(
-          await getJson(
-            `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(topic.trim())}&limit=10&namespace=0&format=json`,
-          ),
-        );
+        const data = asArray(await getJson(wikiOpenSearchUrl(topic)));
         const titles = asArray(data[1]).map(str);
         const urls = asArray(data[3]).map(str);
         const posts = titles
@@ -1655,18 +1673,10 @@ const FEEDS: Feed[] = [
       if (!key) return [];
       const q = topic?.trim();
       if (q) {
-        return youtubeItems(
-          await getJson(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_FEED}&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key)}`,
-          ),
-        ).slice(0, PER_FEED);
+        return youtubeItems(await getJson(youtubeSearchUrl(q, key))).slice(0, PER_FEED);
       }
       const settled = await Promise.allSettled(
-        youtubeRegions(city).map((region) =>
-          getJson(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode=${region}&maxResults=${PER_FEED}&key=${encodeURIComponent(key)}`,
-          ),
-        ),
+        youtubeRegions(city).map((region) => getJson(youtubePopularUrl(region, key))),
       );
       const seen = new Set<string>();
       const posts: Post[] = [];
