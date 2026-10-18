@@ -455,6 +455,45 @@ async function blueskyPosts(topic?: string): Promise<Post[]> {
   return hot.slice(0, PER_FEED);
 }
 
+/** CoinGecko coin search. Production only calls this when `topic` trims non-empty. */
+export function coinGeckoSearchUrl(topic: string): string {
+  return `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(topic.trim())}`;
+}
+
+/** GitHub repo search. `q` is encoded; `sort=updated` (not stars); `per_page` is PER_FEED (8). Production only calls this when `topic` trims non-empty. */
+export function githubSearchUrl(topic: string): string {
+  return `https://api.github.com/search/repositories?q=${encodeURIComponent(topic.trim())}&sort=updated&per_page=${PER_FEED}`;
+}
+
+/** Dev.to articles. Topic uses the first whitespace token as `tag` (lowercased); empty/`  ` is `top=1`. `per_page=12` (not PER_FEED 8). */
+export function devToArticlesUrl(topic?: string): string {
+  const tag = topic?.trim().split(/\s+/)[0]?.toLowerCase();
+  return tag
+    ? `https://dev.to/api/articles?per_page=12&tag=${encodeURIComponent(tag)}`
+    : "https://dev.to/api/articles?per_page=12&top=1";
+}
+
+/** ReliefWeb reports. Topic is `query[value]` (brackets unencoded); empty/`  ` omits the query. `sort[]=date:desc` stays unencoded; `limit` is PER_FEED (8). */
+export function reliefWebUrl(topic?: string): string {
+  const q = topic?.trim();
+  return q
+    ? `https://api.reliefweb.int/v1/reports?appname=hawkxai&limit=${PER_FEED}&sort[]=date:desc&query[value]=${encodeURIComponent(q)}`
+    : `https://api.reliefweb.int/v1/reports?appname=hawkxai&limit=${PER_FEED}&sort[]=date:desc`;
+}
+
+/** Federal Register documents. Topic is `conditions[term]` (brackets unencoded); empty/`  ` is `order=newest` without a term. `per_page` is PER_FEED (8). */
+export function federalRegisterUrl(topic?: string): string {
+  const q = topic?.trim();
+  return q
+    ? `https://www.federalregister.gov/api/v1/documents.json?conditions[term]=${encodeURIComponent(q)}&per_page=${PER_FEED}`
+    : `https://www.federalregister.gov/api/v1/documents.json?per_page=${PER_FEED}&order=newest`;
+}
+
+/** NHTSA recalls-by-vehicle. `make`/`model`/`modelYear` are encoded. Production supplies `v.year || "2024"`. */
+export function nhtsaRecallsUrl(make: string, model: string, year: string): string {
+  return `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`;
+}
+
 const FEEDS: Feed[] = [
   {
     name: "GDELT",
@@ -500,9 +539,7 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asRecord(
-          await getJson(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(topic.trim())}`),
-        );
+        const data = asRecord(await getJson(coinGeckoSearchUrl(topic)));
         return asArray(data?.coins)
           .slice(0, PER_FEED)
           .map((row, i) => {
@@ -785,11 +822,7 @@ const FEEDS: Feed[] = [
     match: ["dev.to", "devto"],
     topicAware: true,
     run: async (_city, topic) => {
-      const tag = topic?.trim().split(/\s+/)[0]?.toLowerCase();
-      const url = tag
-        ? `https://dev.to/api/articles?per_page=12&tag=${encodeURIComponent(tag)}`
-        : "https://dev.to/api/articles?per_page=12&top=1";
-      const rows = asArray(await getJson(url));
+      const rows = asArray(await getJson(devToArticlesUrl(topic)));
       return rows
         .map((row) => {
           const a = asRecord(row);
@@ -807,11 +840,7 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asRecord(
-          await getJson(
-            `https://api.github.com/search/repositories?q=${encodeURIComponent(topic.trim())}&sort=updated&per_page=${PER_FEED}`,
-          ),
-        );
+        const data = asRecord(await getJson(githubSearchUrl(topic)));
         return asArray(data?.items)
           .map((row, i) => {
             const r = asRecord(row);
@@ -1407,11 +1436,7 @@ const FEEDS: Feed[] = [
     match: ["reliefweb"],
     topicAware: true,
     run: async (_city, topic) => {
-      const q = topic?.trim();
-      const url = q
-        ? `https://api.reliefweb.int/v1/reports?appname=hawkxai&limit=${PER_FEED}&sort[]=date:desc&query[value]=${encodeURIComponent(q)}`
-        : `https://api.reliefweb.int/v1/reports?appname=hawkxai&limit=${PER_FEED}&sort[]=date:desc`;
-      const data = asRecord(await getJson(url));
+      const data = asRecord(await getJson(reliefWebUrl(topic)));
       return asArray(data?.data)
         .map((row) => {
           const r = asRecord(row);
@@ -1591,11 +1616,7 @@ const FEEDS: Feed[] = [
     match: ["federal register"],
     topicAware: true,
     run: async (_city, topic) => {
-      const q = topic?.trim();
-      const url = q
-        ? `https://www.federalregister.gov/api/v1/documents.json?conditions[term]=${encodeURIComponent(q)}&per_page=${PER_FEED}`
-        : `https://www.federalregister.gov/api/v1/documents.json?per_page=${PER_FEED}&order=newest`;
-      const data = asRecord(await getJson(url));
+      const data = asRecord(await getJson(federalRegisterUrl(topic)));
       return asArray(data?.results)
         .map((row) => {
           const d = asRecord(row);
@@ -1618,11 +1639,7 @@ const FEEDS: Feed[] = [
       const v = vehicleQuery(topic || "");
       if (!v) return [];
       const year = v.year || "2024";
-      const data = asRecord(
-        await getJson(
-          `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(v.make)}&model=${encodeURIComponent(v.model)}&modelYear=${encodeURIComponent(year)}`,
-        ),
-      );
+      const data = asRecord(await getJson(nhtsaRecallsUrl(v.make, v.model, year)));
       return asArray(data?.results)
         .map((row) => {
           const r = asRecord(row);

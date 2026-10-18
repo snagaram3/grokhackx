@@ -93,3 +93,21 @@ test("attachPublicPosts hydrates unmatched leftovers by score, not as a shared W
   assert.ok(leftoverTitles.includes("unrelated weather advisory"));
   assert.ok(leftoverTitles.includes("Open Library catalog dump"));
 });
+
+test("attachXPosts sixth Camry match is used, not leftover", () => {
+  const camry = topic("camry", "Camry");
+  const matches = Array.from({ length: 6 }, (_, i) =>
+    post(`Camry hybrid recall ${i}`, "x", 80 - i),
+  );
+  const camera = post("camera sensor firmware", "x", 99);
+  const attached = attachXPosts([camry], [...matches, camera]);
+  assert.equal(attached[0].platforms.x.posts.length, 5);
+  assert.ok(attached[0].platforms.x.posts.every((p) => /Camry/i.test(p.title)));
+  const leftover = attached.filter((t) => t.id !== "camry");
+  assert.equal(leftover.length, 1);
+  assert.match(leftover[0]?.label ?? "", /camera/i);
+  assert.equal(
+    leftover.some((t) => /Camry/i.test(t.label)),
+    false,
+  );
+});
