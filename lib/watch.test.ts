@@ -79,6 +79,11 @@ test("diffSnapshots reports measured moves only and stays empty when nothing cha
   assert.deepEqual(diffSnapshots(prev, { ...prev, firstAt: "2026-08-26T07:00:00Z" }), [
     "first print 2026-08-26T07:00:00Z",
   ]);
+  const dated = { ...prev, firstAt: "2026-08-26T07:00:00Z" };
+  assert.deepEqual(
+    diffSnapshots(dated, { ...dated, firstAt: "2026-08-26T08:00:00Z" }),
+    [],
+  );
 });
 
 test("toggleWatch adds then removes without duplicating", () => {
