@@ -93,3 +93,20 @@ test("attachPublicPosts hydrates unmatched leftovers by score, not as a shared W
   assert.ok(leftoverTitles.includes("unrelated weather advisory"));
   assert.ok(leftoverTitles.includes("Open Library catalog dump"));
 });
+
+test("F-150 label does not token-overlap a matching title on X or public", () => {
+  const hit = "F-150 hybrid recall";
+  const xTape = [topic("f-150", "F-150")];
+  attachXPosts(xTape, [post(hit, "x", 80)]);
+  assert.equal(xTape[0].platforms.x.posts.length, 0);
+  const xLeftover = xTape.filter((t) => t.id !== "f-150");
+  assert.equal(xLeftover.length, 1);
+  assert.match(xLeftover[0]?.label ?? "", /F-150/);
+
+  const publicTape = [topic("f-150", "F-150")];
+  attachPublicPosts(publicTape, [post(hit, "public", 80)]);
+  assert.equal(publicTape[0].platforms.public.posts.length, 0);
+  const publicLeftover = publicTape.filter((t) => t.id !== "f-150");
+  assert.equal(publicLeftover.length, 1);
+  assert.match(publicLeftover[0]?.label ?? "", /F-150/);
+});

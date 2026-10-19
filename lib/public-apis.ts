@@ -455,6 +455,49 @@ async function blueskyPosts(topic?: string): Promise<Post[]> {
   return hot.slice(0, PER_FEED);
 }
 
+/** Spaceflight News articles. Topic is `search`; empty/`  `/undefined omits search. `limit=12` is not PER_FEED 8. */
+export function spaceflightNewsUrl(topic?: string): string {
+  const q = topic?.trim();
+  return q
+    ? `https://api.spaceflightnewsapi.net/v4/articles/?limit=12&search=${encodeURIComponent(q)}`
+    : "https://api.spaceflightnewsapi.net/v4/articles/?limit=12";
+}
+
+/** CheapShark deals. Topic is `title`; empty/`  `/undefined is `sortBy=Deal%20Rating` (space already encoded). `pageSize=10` is not PER_FEED 8. */
+export function cheapSharkDealsUrl(topic?: string): string {
+  const q = topic?.trim();
+  return q
+    ? `https://www.cheapshark.com/api/1.0/deals?pageSize=10&title=${encodeURIComponent(q)}`
+    : "https://www.cheapshark.com/api/1.0/deals?pageSize=10&sortBy=Deal%20Rating";
+}
+
+/** Jikan anime. Topic is `q` with `limit=10`; empty/`  `/undefined is top/airing. `limit=10` is not PER_FEED 8. */
+export function jikanAnimeUrl(topic?: string): string {
+  const q = topic?.trim();
+  return q
+    ? `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=10`
+    : "https://api.jikan.moe/v4/top/anime?filter=airing&limit=10";
+}
+
+/** Stack Overflow. Topic is search/advanced `q` + `sort=relevance`; empty/`  `/undefined is questions `sort=hot`. `pagesize` is PER_FEED (8). */
+export function stackOverflowUrl(topic?: string): string {
+  const q = topic?.trim();
+  return q
+    ? `https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&q=${encodeURIComponent(q)}&site=stackoverflow&pagesize=${PER_FEED}`
+    : `https://api.stackexchange.com/2.3/questions?order=desc&sort=hot&site=stackoverflow&pagesize=${PER_FEED}`;
+}
+
+/** OpenAlex works. Empty/`  `/undefined defaults to `artificial intelligence` (not an empty search). `per_page` is PER_FEED (8). */
+export function openAlexUrl(topic?: string): string {
+  const q = topic?.trim() || "artificial intelligence";
+  return `https://api.openalex.org/works?search=${encodeURIComponent(q)}&per_page=${PER_FEED}`;
+}
+
+/** iTunes search. Production only calls this when `topic` trims non-empty. `media=all`; `limit` is PER_FEED (8). */
+export function itunesSearchUrl(topic: string): string {
+  return `https://itunes.apple.com/search?term=${encodeURIComponent(topic.trim())}&media=all&limit=${PER_FEED}`;
+}
+
 const FEEDS: Feed[] = [
   {
     name: "GDELT",
@@ -849,10 +892,7 @@ const FEEDS: Feed[] = [
     match: ["spaceflight news", "snapi"],
     topicAware: true,
     run: async (_city, topic) => {
-      const q = topic?.trim()
-        ? `https://api.spaceflightnewsapi.net/v4/articles/?limit=12&search=${encodeURIComponent(topic.trim())}`
-        : "https://api.spaceflightnewsapi.net/v4/articles/?limit=12";
-      const data = asRecord(await getJson(q));
+      const data = asRecord(await getJson(spaceflightNewsUrl(topic)));
       return asArray(data?.results)
         .map((row) => {
           const a = asRecord(row);
@@ -1060,10 +1100,7 @@ const FEEDS: Feed[] = [
     match: ["cheapshark"],
     topicAware: true,
     run: async (_city, topic) => {
-      const url = topic?.trim()
-        ? `https://www.cheapshark.com/api/1.0/deals?pageSize=10&title=${encodeURIComponent(topic.trim())}`
-        : "https://www.cheapshark.com/api/1.0/deals?pageSize=10&sortBy=Deal%20Rating";
-      const rows = asArray(await getJson(url));
+      const rows = asArray(await getJson(cheapSharkDealsUrl(topic)));
       return rows
         .map((row) => {
           const d = asRecord(row);
@@ -1090,10 +1127,7 @@ const FEEDS: Feed[] = [
     match: ["jikan", "myanimelist"],
     topicAware: true,
     run: async (_city, topic) => {
-      const url = topic?.trim()
-        ? `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(topic.trim())}&limit=10`
-        : "https://api.jikan.moe/v4/top/anime?filter=airing&limit=10";
-      const data = asRecord(await getJson(url));
+      const data = asRecord(await getJson(jikanAnimeUrl(topic)));
       return asArray(data?.data)
         .map((row) => {
           const a = asRecord(row);
@@ -1137,11 +1171,7 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asRecord(
-          await getJson(
-            `https://itunes.apple.com/search?term=${encodeURIComponent(topic.trim())}&media=all&limit=${PER_FEED}`,
-          ),
-        );
+        const data = asRecord(await getJson(itunesSearchUrl(topic)));
         return asArray(data?.results)
           .map((row) => {
             const s = asRecord(row);
@@ -1481,11 +1511,7 @@ const FEEDS: Feed[] = [
     match: ["stackexchange", "stackoverflow"],
     topicAware: true,
     run: async (_city, topic) => {
-      const q = topic?.trim();
-      const url = q
-        ? `https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&q=${encodeURIComponent(q)}&site=stackoverflow&pagesize=${PER_FEED}`
-        : `https://api.stackexchange.com/2.3/questions?order=desc&sort=hot&site=stackoverflow&pagesize=${PER_FEED}`;
-      const data = asRecord(await getJson(url));
+      const data = asRecord(await getJson(stackOverflowUrl(topic)));
       return asArray(data?.items)
         .map((row) => {
           const i = asRecord(row);
@@ -1507,10 +1533,7 @@ const FEEDS: Feed[] = [
     match: ["openalex"],
     topicAware: true,
     run: async (_city, topic) => {
-      const q = topic?.trim() || "artificial intelligence";
-      const data = asRecord(
-        await getJson(`https://api.openalex.org/works?search=${encodeURIComponent(q)}&per_page=${PER_FEED}`),
-      );
+      const data = asRecord(await getJson(openAlexUrl(topic)));
       return asArray(data?.results)
         .map((row) => {
           const w = asRecord(row);
