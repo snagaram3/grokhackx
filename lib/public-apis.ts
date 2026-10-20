@@ -455,6 +455,36 @@ async function blueskyPosts(topic?: string): Promise<Post[]> {
   return hot.slice(0, PER_FEED);
 }
 
+export function tvMazeSearchUrl(topic: string): string {
+  return `https://api.tvmaze.com/search/shows?q=${encodeURIComponent(topic.trim())}`;
+}
+
+export function tvMazeScheduleUrl(country?: string | null): string {
+  return country
+    ? `https://api.tvmaze.com/schedule?country=${encodeURIComponent(country)}`
+    : "https://api.tvmaze.com/schedule/web";
+}
+
+export function openLibrarySearchUrl(topic: string): string {
+  return `https://openlibrary.org/search.json?q=${encodeURIComponent(topic.trim())}&limit=${PER_FEED}`;
+}
+
+export function sportsDbSearchUrl(topic: string): string {
+  return `https://www.thesportsdb.com/api/v1/json/3/searchevents.php?e=${encodeURIComponent(topic.trim())}`;
+}
+
+export function sportsDbPastUrl(): string {
+  return "https://www.thesportsdb.com/api/v1/json/3/eventspastleague.php?id=4328";
+}
+
+export function duckDuckGoSearchUrl(topic: string): string {
+  return `https://api.duckduckgo.com/?q=${encodeURIComponent(topic.trim())}&format=json&no_html=1&skip_disambig=1`;
+}
+
+export function openMeteoForecastUrl(spots: { lat: number; lon: number }[]): string {
+  return `https://api.open-meteo.com/v1/forecast?latitude=${spots.map((s) => s.lat).join(",")}&longitude=${spots.map((s) => s.lon).join(",")}&current=temperature_2m,weather_code,wind_speed_10m`;
+}
+
 const FEEDS: Feed[] = [
   {
     name: "GDELT",
@@ -636,9 +666,7 @@ const FEEDS: Feed[] = [
     match: ["open-meteo", "open meteo"],
     run: async (city) => {
       const spots = weatherSpots(city);
-      const data = await getJson(
-        `https://api.open-meteo.com/v1/forecast?latitude=${spots.map((s) => s.lat).join(",")}&longitude=${spots.map((s) => s.lon).join(",")}&current=temperature_2m,weather_code,wind_speed_10m`,
-      );
+      const data = await getJson(openMeteoForecastUrl(spots));
       const rows = Array.isArray(data) ? data : [data];
       const fromRows = rows
         .map((row, i) => {
@@ -680,9 +708,7 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const rows = asArray(
-          await getJson(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(topic.trim())}`),
-        );
+        const rows = asArray(await getJson(tvMazeSearchUrl(topic)));
         return rows
           .map((row, i) => {
             const show = asRecord(asRecord(row)?.show);
@@ -694,13 +720,7 @@ const FEEDS: Feed[] = [
           .slice(0, PER_FEED);
       }
       const country = tvCountry(_city);
-      const rows = asArray(
-        await getJson(
-          country
-            ? `https://api.tvmaze.com/schedule?country=${encodeURIComponent(country)}`
-            : "https://api.tvmaze.com/schedule/web",
-        ),
-      );
+      const rows = asArray(await getJson(tvMazeScheduleUrl(country)));
       return rows
         .map((row) => {
           const r = asRecord(row);
@@ -727,11 +747,7 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asRecord(
-          await getJson(
-            `https://openlibrary.org/search.json?q=${encodeURIComponent(topic.trim())}&limit=${PER_FEED}`,
-          ),
-        );
+        const data = asRecord(await getJson(openLibrarySearchUrl(topic)));
         return asArray(data?.docs)
           .map((row) => {
             const w = asRecord(row);
@@ -918,11 +934,7 @@ const FEEDS: Feed[] = [
     topicAware: true,
     run: async (_city, topic) => {
       if (topic?.trim()) {
-        const data = asRecord(
-          await getJson(
-            `https://www.thesportsdb.com/api/v1/json/3/searchevents.php?e=${encodeURIComponent(topic.trim())}`,
-          ),
-        );
+        const data = asRecord(await getJson(sportsDbSearchUrl(topic)));
         const events = asArray(data?.event ?? data?.events);
         if (events.length) {
           return events
@@ -942,9 +954,7 @@ const FEEDS: Feed[] = [
             .slice(0, PER_FEED);
         }
       }
-      const data = asRecord(
-        await getJson("https://www.thesportsdb.com/api/v1/json/3/eventspastleague.php?id=4328"),
-      );
+      const data = asRecord(await getJson(sportsDbPastUrl()));
       return asArray(data?.events)
         .map((row) => {
           const e = asRecord(row);
@@ -1451,11 +1461,7 @@ const FEEDS: Feed[] = [
     run: async (_city, topic) => {
       const q = topic?.trim();
       if (!q) return [];
-      const data = asRecord(
-        await getJson(
-          `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`,
-        ),
-      );
+      const data = asRecord(await getJson(duckDuckGoSearchUrl(q)));
       const posts: Post[] = [];
       const heading = str(data?.Heading);
       const abs = str(data?.AbstractText);

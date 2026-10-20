@@ -55,3 +55,19 @@ test("neighborTopics only returns tape prints that share the query tokens", () =
   assert.deepEqual(hits.map((t) => t.id), ["camry"]);
   assert.equal(hits[0].match, "neighbor");
 });
+
+test("neighborTopics empty query does not match Camry unless an alias hits", () => {
+  const camry: Topic = {
+    id: "camry",
+    label: "Camry",
+    velocity: "rising",
+    divergence: 0.5,
+    tickers: [],
+    platforms: { x: emptySlice(), reddit: emptySlice(), hn: emptySlice(), public: emptySlice() },
+  };
+  assert.deepEqual(neighborTopics("", [], [camry]).map((t) => t.id), []);
+  assert.deepEqual(neighborTopics("  ", [], [camry]).map((t) => t.id), []);
+  const aliased = neighborTopics("", ["Toyota Camry"], [camry]);
+  assert.deepEqual(aliased.map((t) => t.id), ["camry"]);
+  assert.equal(aliased[0].match, "neighbor");
+});
