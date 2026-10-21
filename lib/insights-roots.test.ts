@@ -12,7 +12,12 @@ import {
   patentsFromV2,
   pickFirstRecord,
   pickSenseTitle,
+  pubmedDatedSearchUrl,
+  pubmedSummaryUrl,
   resolveInception,
+  wikiCatUrl,
+  wikiRevUrl,
+  wikiTitlePath,
   wikidataTime,
   yearIso,
 } from "./insights-roots";
@@ -34,6 +39,8 @@ test("keepCategory drops wiki housekeeping and keeps family strata", () => {
   assert.equal(keepCategory("All stub articles"), false);
   assert.equal(keepCategory("Wikipedia articles needing cleanup"), false);
   assert.equal(keepCategory("CS1 errors"), false);
+  assert.equal(keepCategory("Category:AB"), false);
+  assert.equal(keepCategory("Category:Cars"), true);
 });
 
 test("oldestReceipt ignores undated rows and picks the earliest ISO", () => {
@@ -202,6 +209,49 @@ test("wikidataTime reads +YYYY-MM-DD and rejects out-of-range years", () => {
   assert.equal(wikidataTime("+2201-01-01T00:00:00Z"), null);
   assert.equal(wikidataTime("sometime in 1982"), null);
   assert.equal(wikidataTime(undefined), null);
+});
+
+test("wikidataTime floors to January 1 and does not keep month or day", () => {
+  assert.equal(wikidataTime("+1982-06-15T12:34:56Z"), "1982-01-01T00:00:00.000Z");
+  assert.equal(wikidataTime("+1800-12-31T00:00:00Z"), "1800-01-01T00:00:00.000Z");
+  assert.equal(wikidataTime("+2100-06-01T00:00:00Z"), "2100-01-01T00:00:00.000Z");
+  assert.equal(wikidataTime("+1799-01-01T00:00:00Z"), null);
+});
+
+test("wikiTitlePath underscores spaces; wikiRevUrl is first-print newer", () => {
+  assert.equal(wikiTitlePath("Camry"), "Camry");
+  assert.equal(wikiTitlePath("Toyota Camry"), "Toyota_Camry");
+  assert.equal(wikiTitlePath("Toyota Camry").includes("%20"), false);
+  assert.equal(wikiTitlePath("C++"), "C%2B%2B");
+  const rev = wikiRevUrl("Toyota Camry");
+  assert.equal(
+    rev,
+    "https://en.wikipedia.org/w/api.php?action=query&prop=revisions&titles=Toyota_Camry&rvlimit=1&rvdir=newer&rvprop=timestamp|user&format=json&origin=*",
+  );
+  assert.equal(rev.includes("rvdir=older"), false);
+  assert.equal(rev.includes("%20"), false);
+  const cats = wikiCatUrl("Toyota Camry");
+  assert.equal(cats.includes("clshow=!hidden"), true);
+  assert.equal(cats.includes("%21hidden"), false);
+  assert.equal(cats.includes("titles=Toyota_Camry"), true);
+});
+
+test("pubmedDatedSearchUrl encodes term at sort=pub_date not relevance", () => {
+  assert.equal(
+    pubmedDatedSearchUrl("Camry"),
+    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=Camry&retmax=6&retmode=json&sort=pub_date",
+  );
+  assert.equal(
+    pubmedDatedSearchUrl("Toyota Camry"),
+    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=Toyota%20Camry&retmax=6&retmode=json&sort=pub_date",
+  );
+  const url = pubmedDatedSearchUrl("Camry");
+  assert.equal(url.includes("sort=relevance"), false);
+  assert.equal(
+    pubmedSummaryUrl(["123", "456"]),
+    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=123,456&retmode=json",
+  );
+  assert.equal(pubmedSummaryUrl(["123", "456"]).includes("%2C"), false);
 });
 
 test("patentsFromLegacy and patentsFromV2 skip incomplete rows and keep dates", () => {
