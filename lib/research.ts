@@ -45,6 +45,54 @@ function sourceId(kind: ResearchSourceKind, n: number): string {
   return `${kind}-${n}`;
 }
 
+/** Opensearch is limit=5 + origin=*; the public tape uses limit=10 without origin. */
+export function researchWikiSearchUrl(query: string): string {
+  return (
+    `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}` +
+    `&limit=5&namespace=0&format=json&origin=*`
+  );
+}
+
+/** Page titles use underscores before encoding so spaces are not %20. */
+export function researchWikiPageUrl(title: string): string {
+  return `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+}
+
+export function researchWikiSummaryUrl(title: string): string {
+  return `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+}
+
+/** Research ranks PubMed by relevance; taproot dated receipts use pub_date. */
+export function researchPubmedSearchUrl(query: string): string {
+  return (
+    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed` +
+    `&term=${encodeURIComponent(query)}&retmax=6&retmode=json&sort=relevance`
+  );
+}
+
+export function researchPubmedSummaryUrl(ids: string[]): string {
+  return (
+    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed` +
+    `&id=${ids.join(",")}&retmode=json`
+  );
+}
+
+/** Research arXiv is relevance / max 6; the public tape is submittedDate / max 8. */
+export function researchArxivUrl(query: string): string {
+  return (
+    `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}` +
+    `&start=0&max_results=6&sortBy=relevance&sortOrder=descending`
+  );
+}
+
+export function researchUsptoUrl(query: string): string {
+  const q = JSON.stringify({ _text_any: { patent_title: query } });
+  return (
+    `https://api.patentsview.org/patents/query?q=${encodeURIComponent(q)}` +
+    `&f=["patent_number","patent_title","patent_date","patent_abstract"]&o={"per_page":5}`
+  );
+}
+
 async function duckDuckGo(query: string): Promise<ResearchSource[]> {
   const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
   const res = await fetch(url, {
@@ -86,9 +134,7 @@ async function duckDuckGo(query: string): Promise<ResearchSource[]> {
 }
 
 async function wikipedia(query: string): Promise<ResearchSource[]> {
-  const searchUrl =
-    `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}` +
-    `&limit=5&namespace=0&format=json&origin=*`;
+  const searchUrl = researchWikiSearchUrl(query);
   const searchRes = await fetch(searchUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
@@ -101,8 +147,8 @@ async function wikipedia(query: string): Promise<ResearchSource[]> {
   if (!titles.length) return [];
 
   const title = titles[0];
-  const pageUrl = urls[0] || `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
-  const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+  const pageUrl = urls[0] || researchWikiPageUrl(title);
+  const summaryUrl = researchWikiSummaryUrl(title);
   const summaryRes = await fetch(summaryUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
@@ -128,7 +174,7 @@ async function wikipedia(query: string): Promise<ResearchSource[]> {
       id: sourceId("wikipedia", i + 1),
       kind: "wikipedia",
       title: titles[i],
-      url: urls[i] || `https://en.wikipedia.org/wiki/${encodeURIComponent(titles[i].replace(/ /g, "_"))}`,
+      url: urls[i] || researchWikiPageUrl(titles[i]),
       snippet: `Wikipedia page: ${titles[i]}`,
     });
   }
@@ -136,9 +182,7 @@ async function wikipedia(query: string): Promise<ResearchSource[]> {
 }
 
 async function pubmed(query: string): Promise<ResearchSource[]> {
-  const searchUrl =
-    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed` +
-    `&term=${encodeURIComponent(query)}&retmax=6&retmode=json&sort=relevance`;
+  const searchUrl = researchPubmedSearchUrl(query);
   const searchRes = await fetch(searchUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
@@ -151,9 +195,7 @@ async function pubmed(query: string): Promise<ResearchSource[]> {
   const ids = search.esearchresult?.idlist ?? [];
   if (!ids.length) return [];
 
-  const summaryUrl =
-    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed` +
-    `&id=${ids.join(",")}&retmode=json`;
+  const summaryUrl = researchPubmedSummaryUrl(ids);
   const summaryRes = await fetch(summaryUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
@@ -192,9 +234,7 @@ function decodeXml(text: string): string {
 }
 
 async function arxiv(query: string): Promise<ResearchSource[]> {
-  const url =
-    `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}` +
-    `&start=0&max_results=6&sortBy=relevance&sortOrder=descending`;
+  const url = researchArxivUrl(query);
   const res = await fetch(url, {
     cache: "no-store",
     headers: { Accept: "application/atom+xml, application/xml, text/xml", "User-Agent": UA },
@@ -225,10 +265,7 @@ async function arxiv(query: string): Promise<ResearchSource[]> {
 }
 
 async function uspto(query: string): Promise<ResearchSource[]> {
-  const q = JSON.stringify({ _text_any: { patent_title: query } });
-  const url =
-    `https://api.patentsview.org/patents/query?q=${encodeURIComponent(q)}` +
-    `&f=["patent_number","patent_title","patent_date","patent_abstract"]&o={"per_page":5}`;
+  const url = researchUsptoUrl(query);
   const res = await fetch(url, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },

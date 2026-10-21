@@ -57,6 +57,41 @@ export function yearIso(year: number): string {
   return `${year}-01-01T00:00:00.000Z`;
 }
 
+/** Spaces become underscores before encoding so titles are not %20. */
+export function wikiTitlePath(title: string): string {
+  return encodeURIComponent(title.replace(/ /g, "_"));
+}
+
+/** First-print revisions are rvdir=newer, not the latest edit. */
+export function wikiRevUrl(title: string): string {
+  return (
+    `https://en.wikipedia.org/w/api.php?action=query&prop=revisions&titles=${wikiTitlePath(title)}` +
+    `&rvlimit=1&rvdir=newer&rvprop=timestamp|user&format=json&origin=*`
+  );
+}
+
+export function wikiCatUrl(title: string): string {
+  return (
+    `https://en.wikipedia.org/w/api.php?action=query&prop=categories&clshow=!hidden` +
+    `&titles=${wikiTitlePath(title)}&cllimit=16&format=json&origin=*`
+  );
+}
+
+/** Taproot PubMed is oldest-first; research ranks by relevance. */
+export function pubmedDatedSearchUrl(query: string): string {
+  return (
+    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed` +
+    `&term=${encodeURIComponent(query)}&retmax=6&retmode=json&sort=pub_date`
+  );
+}
+
+export function pubmedSummaryUrl(ids: string[]): string {
+  return (
+    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed` +
+    `&id=${ids.join(",")}&retmode=json`
+  );
+}
+
 export function keepCategory(name: string): boolean {
   const n = name.replace(/^Category:/, "").trim();
   if (n.length < 3) return false;
@@ -325,11 +360,11 @@ async function wikipediaPage(query: string, senseId?: string | null): Promise<Wi
 
   const senses = titles.slice(0, 5).map((t, i) => ({
     title: t,
-    url: urls[i] || `https://en.wikipedia.org/wiki/${encodeURIComponent(t.replace(/ /g, "_"))}`,
+    url: urls[i] || `https://en.wikipedia.org/wiki/${wikiTitlePath(t)}`,
   }));
   const chosen = pickSenseTitle(senses, senseId) ?? senses[0];
   const pageUrl = chosen.url;
-  const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(chosen.title.replace(/ /g, "_"))}`;
+  const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${wikiTitlePath(chosen.title)}`;
   const summaryRes = await fetch(summaryUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
@@ -353,13 +388,8 @@ async function wikipediaPage(query: string, senseId?: string | null): Promise<Wi
 }
 
 async function wikipediaRoot(title: string): Promise<WikiRoot> {
-  const encoded = encodeURIComponent(title.replace(/ /g, "_"));
-  const revUrl =
-    `https://en.wikipedia.org/w/api.php?action=query&prop=revisions&titles=${encoded}` +
-    `&rvlimit=1&rvdir=newer&rvprop=timestamp|user&format=json&origin=*`;
-  const catUrl =
-    `https://en.wikipedia.org/w/api.php?action=query&prop=categories&clshow=!hidden` +
-    `&titles=${encoded}&cllimit=16&format=json&origin=*`;
+  const revUrl = wikiRevUrl(title);
+  const catUrl = wikiCatUrl(title);
 
   const [revRes, catRes] = await Promise.all([
     fetch(revUrl, {
@@ -411,7 +441,7 @@ export function wikidataTime(raw: string | undefined): string | null {
 }
 
 async function wikidataInception(title: string): Promise<{ at: string; url: string; patents: RootReceipt[] } | null> {
-  const encoded = encodeURIComponent(title.replace(/ /g, "_"));
+  const encoded = wikiTitlePath(title);
   const propsUrl =
     `https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&ppprop=wikibase_item` +
     `&titles=${encoded}&format=json&origin=*`;
@@ -567,9 +597,7 @@ async function usptoDated(query: string): Promise<RootReceipt[]> {
 }
 
 async function pubmedDated(query: string): Promise<RootReceipt[]> {
-  const searchUrl =
-    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed` +
-    `&term=${encodeURIComponent(query)}&retmax=6&retmode=json&sort=pub_date`;
+  const searchUrl = pubmedDatedSearchUrl(query);
   const searchRes = await fetch(searchUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
@@ -580,9 +608,7 @@ async function pubmedDated(query: string): Promise<RootReceipt[]> {
   const ids = search.esearchresult?.idlist ?? [];
   if (!ids.length) return [];
 
-  const summaryUrl =
-    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed` +
-    `&id=${ids.join(",")}&retmode=json`;
+  const summaryUrl = pubmedSummaryUrl(ids);
   const summaryRes = await fetch(summaryUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
