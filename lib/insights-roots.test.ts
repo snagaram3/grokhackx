@@ -13,7 +13,10 @@ import {
   pickFirstRecord,
   pickSenseTitle,
   resolveInception,
+  usptoV2Url,
+  wikidataEntityUrl,
   wikidataTime,
+  wikiPagepropsUrl,
   yearIso,
 } from "./insights-roots";
 import type { RootReceipt } from "./insights-types";
@@ -308,4 +311,165 @@ test("assembleRoots stays thin when there is no extract and no dated record", ()
   assert.equal(trace.layers.length, 1);
   assert.equal(trace.layers[0]?.kind, "plug");
   assert.ok(trace.degraded.includes("wikipedia offline"));
+});
+
+test("wikiPagepropsUrl underscores spaces and asks for wikibase_item", () => {
+  assert.equal(
+    wikiPagepropsUrl("Camry"),
+    "https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&ppprop=wikibase_item&titles=Camry&format=json&origin=*",
+  );
+  const camry = wikiPagepropsUrl("Toyota Camry");
+  assert.equal(camry.includes("titles=Toyota_Camry"), true);
+  assert.equal(camry.includes("%20"), false);
+  assert.equal(wikiPagepropsUrl("C++").includes("titles=C%2B%2B"), true);
+  assert.equal(camry.includes("ppprop=wikibase_item"), true);
+});
+
+test("wikidataEntityUrl encodes qid and asks for claims only", () => {
+  assert.equal(
+    wikidataEntityUrl("Q39973"),
+    "https://www.wikidata.org/w/api.php?action=wbgetentities&ids=Q39973&props=claims&format=json&origin=*",
+  );
+  const spaced = wikidataEntityUrl("Q 39973");
+  assert.equal(spaced.includes("ids=Q%2039973"), true);
+  assert.equal(spaced.includes("props=claims"), true);
+  assert.equal(spaced.includes("props=labels"), false);
+});
+
+test("usptoV2Url uses search.patentsview.org size=5 not legacy per_page", () => {
+  const camry = usptoV2Url("Camry");
+  assert.equal(
+    camry,
+    "https://search.patentsview.org/api/v1/patent/?q=%7B%22_text_any%22%3A%7B%22patent_title%22%3A%22Camry%22%7D%7D&f=[\"patent_id\",\"patent_title\",\"patent_date\",\"patent_abstract\"]&o={\"size\":5}",
+  );
+  const spaced = usptoV2Url("Toyota Camry");
+  assert.equal(spaced.includes("Toyota%20Camry"), true);
+  assert.equal(spaced.includes("search.patentsview.org"), true);
+  assert.equal(spaced.includes("api.patentsview.org"), false);
+  assert.equal(spaced.includes("\"size\":5"), true);
+  assert.equal(spaced.includes("per_page"), false);
+  assert.equal(spaced.includes("patent_number"), false);
+});
+
+test("pickFirstRecord does not let a newer grant beat an older wiki first-print", () => {
+  const wiki = rec({
+    title: "wiki 1983",
+    url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+    source: "wikipedia",
+    at: "1983-01-01T00:00:00Z",
+  });
+  const laterGrant = rec({
+    title: "later Camry grant",
+    url: "https://patents.google.com/patent/US9999999",
+    source: "uspto",
+    at: "1999-01-01T00:00:00Z",
+  });
+  const undatedGrant = rec({
+    title: "undated Camry grant",
+    url: "https://patents.google.com/patent/US1111111",
+    source: "uspto",
+    at: null,
+  });
+  assert.equal(pickFirstRecord(wiki, [laterGrant])?.source, "wikipedia");
+  assert.equal(pickFirstRecord(wiki, [undatedGrant])?.source, "wikipedia");
+  assert.equal(pickFirstRecord(null, [laterGrant])?.source, "uspto");
+  assert.equal(pickFirstRecord(null, [undatedGrant]), null);
+});
+
+test("measureOriginLag leftover missing fields and one-year gap stay locked", () => {
+  assert.equal(measureOriginLag(yearIso(1982), null, "https://www.wikidata.org/wiki/Q39973", "2004-06-20T00:00:00Z"), null);
+  assert.equal(measureOriginLag(null, "wikidata", "https://www.wikidata.org/wiki/Q39973", "2004-06-20T00:00:00Z"), null);
+  assert.equal(measureOriginLag(yearIso(1982), "wikidata", "https://www.wikidata.org/wiki/Q39973", "not-a-date"), null);
+  assert.equal(measureOriginLag(yearIso(2003), "wikidata", "https://www.wikidata.org/wiki/Q39973", "2004-06-20T00:00:00Z")?.lagYears, 1);
+});
+
+test("assembleRoots leftover receipt dedup keeps same url when the stamp differs", () => {
+  const first = rec({
+    title: "Camry paper 0",
+    url: "https://pubmed.example/0",
+    source: "pubmed",
+    at: "2000-01-01T00:00:00Z",
+  });
+  const dup = rec({
+    title: "Camry paper 0 copy",
+    url: "https://pubmed.example/0",
+    source: "pubmed",
+    at: "2000-01-01T00:00:00Z",
+  });
+  const laterSameUrl = rec({
+    title: "Camry paper 0 later",
+    url: "https://pubmed.example/0",
+    source: "pubmed",
+    at: "2001-01-01T00:00:00Z",
+  });
+  const trace = assembleRoots({
+    query: "Camry",
+    wiki: null,
+    wikiRoot: null,
+    abstract: null,
+    dated: [first, dup, laterSameUrl],
+    tape: [],
+    ...emptyInception,
+    degraded: [],
+  });
+  assert.equal(trace.receipts.length, 2);
+  assert.deepEqual(
+    trace.receipts.map((r) => r.at),
+    ["2000-01-01T00:00:00Z", "2001-01-01T00:00:00Z"],
+  );
+});
+
+test("assembleRoots leftover 16-cap keeps the oldest Camry rows", () => {
+  const dated = Array.from({ length: 17 }, (_, i) =>
+    rec({
+      title: `Camry paper ${i}`,
+      url: `https://pubmed.example/${i}`,
+      source: "pubmed",
+      at: `2000-01-${String(i + 1).padStart(2, "0")}T00:00:00Z`,
+    }),
+  );
+  const trace = assembleRoots({
+    query: "Camry",
+    wiki: null,
+    wikiRoot: null,
+    abstract: null,
+    dated,
+    tape: [],
+    ...emptyInception,
+    degraded: [],
+  });
+  assert.equal(trace.receipts.length, 16);
+  assert.equal(trace.receipts[0]?.url, "https://pubmed.example/0");
+  assert.equal(trace.receipts.some((r) => r.url === "https://pubmed.example/16"), false);
+});
+
+test("assembleRoots empty query does not keep Camry dated rows", () => {
+  const trace = assembleRoots({
+    query: "  ",
+    wiki: null,
+    wikiRoot: null,
+    abstract: null,
+    dated: [
+      rec({
+        title: "Camry hybrid recall",
+        url: "https://pubmed.example/1",
+        source: "pubmed",
+        at: "2018-04-01T00:00:00Z",
+      }),
+    ],
+    tape: [],
+    ...emptyInception,
+    degraded: [],
+  });
+  assert.equal(trace.receipts.length, 0);
+  assert.equal(trace.firstRecord, null);
+});
+
+test("patentsFromLegacy prefixes US even when the number already has it", () => {
+  const doubled = patentsFromLegacy({
+    patents: [{ patent_number: "US4501234", patent_title: "Camry body" }],
+  });
+  assert.equal(doubled[0]?.url, "https://patents.google.com/patent/USUS4501234");
+  assert.deepEqual(patentsFromLegacy({}), []);
+  assert.deepEqual(patentsFromV2({}), []);
 });

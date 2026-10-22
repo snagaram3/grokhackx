@@ -250,10 +250,14 @@ export async function fetchReddit(
   return stampPosts(posts, "collect_reddit");
 }
 
+export function redditSearchUrl(query: string): string {
+  return `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=hot&limit=25&raw_json=1`;
+}
+
 export async function searchReddit(query: string): Promise<Post[]> {
   const q = query.trim();
   if (!q) return fetchReddit();
-  const url = `https://www.reddit.com/search.json?q=${encodeURIComponent(q)}&sort=hot&limit=25&raw_json=1`;
+  const url = redditSearchUrl(q);
   try {
     const text = await httpText(url, "application/json");
     if (text.trimStart().startsWith("<")) throw new Error("html-block");
