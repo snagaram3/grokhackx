@@ -58,10 +58,14 @@ export async function fetchHn(limit = 60): Promise<Post[]> {
   return stampPosts(posts, "collect_hn");
 }
 
+export function hnSearchUrl(query: string, limit = 20): string {
+  return `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=${limit}`;
+}
+
 export async function searchHn(query: string, limit = 20): Promise<Post[]> {
   const q = query.trim();
   if (!q) return fetchHn(limit);
-  const url = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=${limit}`;
+  const url = hnSearchUrl(q, limit);
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`hn search ${res.status}`);
   const data = (await res.json()) as {

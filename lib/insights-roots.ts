@@ -410,11 +410,24 @@ export function wikidataTime(raw: string | undefined): string | null {
   return yearIso(year);
 }
 
-async function wikidataInception(title: string): Promise<{ at: string; url: string; patents: RootReceipt[] } | null> {
+/** Spaces become underscores before encoding so titles are not %20. */
+export function wikiPagepropsUrl(title: string): string {
   const encoded = encodeURIComponent(title.replace(/ /g, "_"));
-  const propsUrl =
+  return (
     `https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&ppprop=wikibase_item` +
-    `&titles=${encoded}&format=json&origin=*`;
+    `&titles=${encoded}&format=json&origin=*`
+  );
+}
+
+export function wikidataEntityUrl(qid: string): string {
+  return (
+    `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${encodeURIComponent(qid)}` +
+    `&props=claims&format=json&origin=*`
+  );
+}
+
+async function wikidataInception(title: string): Promise<{ at: string; url: string; patents: RootReceipt[] } | null> {
+  const propsUrl = wikiPagepropsUrl(title);
   const propsRes = await fetch(propsUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
@@ -427,9 +440,7 @@ async function wikidataInception(title: string): Promise<{ at: string; url: stri
   const qid = Object.values(props.query?.pages ?? {})[0]?.pageprops?.wikibase_item;
   if (!qid) return null;
 
-  const entUrl =
-    `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${encodeURIComponent(qid)}` +
-    `&props=claims&format=json&origin=*`;
+  const entUrl = wikidataEntityUrl(qid);
   const entRes = await fetch(entUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
@@ -513,6 +524,15 @@ export function patentsFromLegacy(data: unknown): RootReceipt[] {
   return out;
 }
 
+/** Insights fallback host. Research stays on api.patentsview.org / per_page. */
+export function usptoV2Url(query: string): string {
+  const q = JSON.stringify({ _text_any: { patent_title: query } });
+  return (
+    `https://search.patentsview.org/api/v1/patent/?q=${encodeURIComponent(q)}` +
+    `&f=["patent_id","patent_title","patent_date","patent_abstract"]&o={"size":5}`
+  );
+}
+
 export function patentsFromV2(data: unknown): RootReceipt[] {
   const rows = (data as { patents?: { patent_id?: string; patent_title?: string; patent_date?: string; patent_abstract?: string }[] }).patents;
   const out: RootReceipt[] = [];
@@ -534,9 +554,7 @@ async function usptoDated(query: string): Promise<RootReceipt[]> {
   const legacy =
     `https://api.patentsview.org/patents/query?q=${encodeURIComponent(q)}` +
     `&f=["patent_number","patent_title","patent_date","patent_abstract"]&o={"per_page":5}`;
-  const v2 =
-    `https://search.patentsview.org/api/v1/patent/?q=${encodeURIComponent(q)}` +
-    `&f=["patent_id","patent_title","patent_date","patent_abstract"]&o={"size":5}`;
+  const v2 = usptoV2Url(query);
 
   const headers: Record<string, string> = { Accept: "application/json", "User-Agent": UA };
   const key = process.env.PATENTS_VIEW_KEY?.trim();
