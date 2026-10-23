@@ -1,9 +1,17 @@
 import { stampPosts } from "./lineage";
 import type { Post } from "./types";
 
-const TOP = "https://hacker-news.firebaseio.com/v0/topstories.json";
-const ITEM = (id: number) =>
-  `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
+export function hnTopUrl(): string {
+  return "https://hacker-news.firebaseio.com/v0/topstories.json";
+}
+
+export function hnItemUrl(id: number): string {
+  return `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
+}
+
+export function hnStoryUrl(id: number | string | undefined): string {
+  return `https://news.ycombinator.com/item?id=${id}`;
+}
 
 interface HnItem {
   id?: number;
@@ -34,12 +42,12 @@ async function mapPool<T, R>(
 }
 
 export async function fetchHn(limit = 60): Promise<Post[]> {
-  const idsRes = await fetch(TOP, { cache: "no-store" });
+  const idsRes = await fetch(hnTopUrl(), { cache: "no-store" });
   if (!idsRes.ok) throw new Error(`hn topstories ${idsRes.status}`);
   const ids = ((await idsRes.json()) as number[]).slice(0, limit);
 
   const items = await mapPool(ids, 8, async (id) => {
-    const res = await fetch(ITEM(id), { cache: "no-store" });
+    const res = await fetch(hnItemUrl(id), { cache: "no-store" });
     if (!res.ok) return null;
     return (await res.json()) as HnItem;
   });
@@ -49,7 +57,7 @@ export async function fetchHn(limit = 60): Promise<Post[]> {
     .map((it) => ({
       platform: "hn" as const,
       title: it.title ?? "",
-      url: it.url ?? `https://news.ycombinator.com/item?id=${it.id}`,
+      url: it.url ?? hnStoryUrl(it.id),
       score: Number(it.score ?? 0),
       createdAt: new Date((it.time ?? 0) * 1000).toISOString(),
     }));
@@ -72,7 +80,7 @@ export async function searchHn(query: string, limit = 20): Promise<Post[]> {
     .map((h) => ({
       platform: "hn" as const,
       title: h.title ?? "",
-      url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+      url: h.url || hnStoryUrl(h.objectID),
       score: Number(h.points ?? 0),
       createdAt: h.created_at ?? new Date().toISOString(),
     }));

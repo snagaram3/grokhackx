@@ -5,6 +5,7 @@ import {
   isGoogleTrendsUrl,
   parseTrendsRss,
   trendsRssGeos,
+  trendsRssUrl,
 } from "./signals";
 
 const SAMPLE = `<?xml version="1.0" encoding="UTF-8"?>
@@ -54,4 +55,11 @@ test("filterTrendItems keeps only phrase hits and dedupes URLs", () => {
 test("trendsRssGeos uses the city YouTube region, world uses five geos", () => {
   assert.deepEqual(trendsRssGeos("tokyo"), ["JP"]);
   assert.equal(trendsRssGeos("all").length, 5);
+});
+
+test("trendsRssUrl encodes geo and stays on trending/rss", () => {
+  assert.equal(trendsRssUrl("US"), "https://trends.google.com/trending/rss?geo=US");
+  assert.equal(trendsRssUrl("J P"), "https://trends.google.com/trending/rss?geo=J%20P");
+  assert.equal(trendsRssUrl("BR").includes("news.google.com"), false);
+  assert.equal(trendsRssUrl("BR").includes("explore"), false);
 });

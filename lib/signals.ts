@@ -114,8 +114,12 @@ function toPosts(items: TrendsRssItem[]): Post[] {
   );
 }
 
+export function trendsRssUrl(geo: string): string {
+  return `https://trends.google.com/trending/rss?geo=${encodeURIComponent(geo)}`;
+}
+
 async function fetchTrendsRss(geo: string): Promise<TrendsRssItem[]> {
-  const res = await fetch(`https://trends.google.com/trending/rss?geo=${encodeURIComponent(geo)}`, {
+  const res = await fetch(trendsRssUrl(geo), {
     cache: "no-store",
     headers: {
       Accept: "application/rss+xml, application/xml, text/xml, */*",

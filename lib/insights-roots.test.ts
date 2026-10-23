@@ -309,3 +309,190 @@ test("assembleRoots stays thin when there is no extract and no dated record", ()
   assert.equal(trace.layers[0]?.kind, "plug");
   assert.ok(trace.degraded.includes("wikipedia offline"));
 });
+
+test("extractBirthYear leftover verbs keep a year and reject 2101 / empty", () => {
+  assert.equal(extractBirthYear("Toyota was founded in 1937."), 1937);
+  assert.equal(extractBirthYear("The plant was established in 1988."), 1988);
+  assert.equal(extractBirthYear("Production began in 1982."), 1982);
+  assert.equal(extractBirthYear("first produced in 1983 as a compact."), 1983);
+  assert.equal(extractBirthYear("first released in 1997."), 1997);
+  assert.equal(extractBirthYear("first published in 2001."), 2001);
+  assert.equal(extractBirthYear("first appeared in 1982."), 1982);
+  assert.equal(extractBirthYear("first sold in 1983."), 1983);
+  assert.equal(extractBirthYear("The line was introduced in 1982."), 1982);
+  assert.equal(extractBirthYear("first launched in 2101."), null);
+  assert.equal(extractBirthYear(null), null);
+  assert.equal(extractBirthYear(""), null);
+});
+
+test("inceptionFromParents leftover founded/established/launched and 2101 stay locked", () => {
+  assert.equal(inceptionFromParents(["Companies founded in 1937"]), 1937);
+  assert.equal(inceptionFromParents(["Brands established in 1982"]), 1982);
+  assert.equal(inceptionFromParents(["Cars launched in 1997"]), 1997);
+  assert.equal(inceptionFromParents(["Cars introduced in 2101"]), null);
+});
+
+test("pickSenseTitle leftover empty list and unknown id do not invent a sense", () => {
+  const senses = [
+    { title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" },
+    { title: "Camryn Manheim", url: "https://en.wikipedia.org/wiki/Camryn_Manheim" },
+  ];
+  assert.equal(pickSenseTitle([], "toyota-camry"), null);
+  assert.equal(pickSenseTitle(senses, "unknown-person")?.title, "Toyota Camry");
+  assert.equal(pickSenseTitle(senses, "  toyota-camry  ")?.title, "Toyota Camry");
+});
+
+test("oldestReceipt leftover equal stamps keep the first dated row", () => {
+  const a = rec({ title: "a", url: "https://a.test/a", at: "2000-01-01T00:00:00Z" });
+  const b = rec({ title: "b", url: "https://a.test/b", at: "2000-01-01T00:00:00Z" });
+  assert.equal(oldestReceipt([a, b])?.title, "a");
+});
+
+test("resolveInception leftover empty Wikidata at and cache without source fall through", () => {
+  const wiki = {
+    title: "Toyota Camry",
+    url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+    extract: "The Toyota Camry has been sold internationally since 1982.",
+    senses: [],
+  };
+  const wikiRoot = { firstAt: "2004-06-20T00:00:00Z", firstEditor: null, parents: ["Cars introduced in 1982"] };
+  const cached = {
+    wikiTitle: wiki.title,
+    wikiUrl: wiki.url,
+    firstAt: wikiRoot.firstAt,
+    firstEditor: null,
+    parents: wikiRoot.parents,
+    patents: [] as RootReceipt[],
+    inceptionAt: "1983-01-01T00:00:00.000Z",
+    inceptionSource: "extract" as const,
+    inceptionUrl: wiki.url,
+    cachedAt: "2026-08-29T00:00:00.000Z",
+  };
+
+  const emptyAt = resolveInception(
+    wiki,
+    wikiRoot,
+    { at: "", url: "https://www.wikidata.org/wiki/Q39973" },
+    cached,
+  );
+  assert.equal(emptyAt.source, "extract");
+  assert.equal(emptyAt.at, "1983-01-01T00:00:00.000Z");
+
+  const noSource = resolveInception(wiki, wikiRoot, null, { ...cached, inceptionSource: null });
+  assert.equal(noSource.source, "category");
+  assert.equal(noSource.at, yearIso(1982));
+});
+
+test("assembleRoots leftover wiki without firstAt uses abstract and a dated pubmed record", () => {
+  const paper = rec({
+    title: "Camry hybrid recall notice",
+    url: "https://pubmed.example/1",
+    source: "pubmed",
+    at: "2018-04-01T00:00:00Z",
+  });
+  const trace = assembleRoots({
+    query: "Camry",
+    wiki: {
+      title: "Toyota Camry",
+      url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+      extract: "   ",
+      senses: [{ title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" }],
+    },
+    wikiRoot: { firstAt: null, firstEditor: "editor", parents: [] },
+    abstract: {
+      title: "Toyota Camry",
+      url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+      snippet: "The Toyota Camry is an automobile sold internationally by Toyota since 1982.",
+    },
+    dated: [paper],
+    tape: [],
+    ...emptyInception,
+    degraded: ["wikipedia-root offline", "wikipedia-root offline", "hn offline"],
+  });
+  assert.equal(trace.thin, false);
+  assert.match(trace.originExtract ?? "", /automobile/);
+  assert.equal(trace.firstRecord?.source, "pubmed");
+  assert.match(trace.layers.find((l) => l.kind === "first-record")?.label ?? "", /dated record/);
+  assert.equal((trace.layers.find((l) => l.kind === "first-record")?.label ?? "").includes("product grant"), false);
+  assert.equal(trace.receipts.some((r) => /first encyclopedia revision/i.test(r.title)), false);
+  assert.deepEqual(trace.degraded, ["wikipedia-root offline", "hn offline"]);
+  assert.equal(trace.layers.some((l) => l.kind === "sense"), false);
+});
+
+test("assembleRoots leftover extract-only and dated-only are not thin", () => {
+  const extractOnly = assembleRoots({
+    query: "Camry",
+    wiki: {
+      title: "Toyota Camry",
+      url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+      extract: "The Toyota Camry is an automobile sold internationally by Toyota since 1982.",
+      senses: [{ title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" }],
+    },
+    wikiRoot: { firstAt: null, firstEditor: null, parents: [] },
+    abstract: null,
+    dated: [],
+    tape: [],
+    ...emptyInception,
+    degraded: [],
+  });
+  assert.equal(extractOnly.thin, false);
+  assert.equal(extractOnly.firstRecord, null);
+  assert.ok(extractOnly.layers.some((l) => l.kind === "origin"));
+
+  const datedOnly = assembleRoots({
+    query: "Camry",
+    wiki: null,
+    wikiRoot: null,
+    abstract: null,
+    dated: [
+      rec({
+        title: "Camry hybrid recall notice",
+        url: "https://pubmed.example/1",
+        source: "pubmed",
+        at: "2018-04-01T00:00:00Z",
+      }),
+    ],
+    tape: [],
+    ...emptyInception,
+    degraded: [],
+  });
+  assert.equal(datedOnly.thin, false);
+  assert.equal(datedOnly.firstRecord?.source, "pubmed");
+  assert.equal(datedOnly.originExtract, null);
+});
+
+test("assembleRoots leftover parents cap 8 and first-editor snippet stay locked", () => {
+  const parents = [
+    "Toyota vehicles",
+    "Cars introduced in 1982",
+    "Sedans",
+    "Front-wheel-drive vehicles",
+    "Compact cars",
+    "Mid-size cars",
+    "Hybrid cars",
+    "Japanese brands",
+    "Cars of Japan",
+  ];
+  const trace = assembleRoots({
+    query: "Camry",
+    wiki: {
+      title: "Toyota Camry",
+      url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+      extract: "The Toyota Camry is an automobile sold internationally by Toyota since 1982.",
+      senses: [{ title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" }],
+    },
+    wikiRoot: { firstAt: "2003-02-01T00:00:00Z", firstEditor: "editor", parents },
+    abstract: null,
+    dated: [],
+    tape: [],
+    ...emptyInception,
+    degraded: [],
+  });
+  assert.equal(trace.parents.length, 8);
+  assert.equal(trace.parents.some((p) => p.label === "Cars of Japan"), false);
+  assert.match(
+    trace.receipts.find((r) => r.source === "wikipedia")?.snippet ?? "",
+    /First Wikipedia revision by editor/,
+  );
+});
+
