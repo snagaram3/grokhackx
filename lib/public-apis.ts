@@ -238,6 +238,10 @@ export async function loadPublicApiCatalog(): Promise<PublicApiEntry[]> {
   return entries;
 }
 
+export function openLibraryFallbackUrl(): string {
+  return "https://openlibrary.org/search.json?q=language%3Aeng&limit=8";
+}
+
 function utcYmd(daysAgo: number) {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - daysAgo);
@@ -767,7 +771,7 @@ const FEEDS: Feed[] = [
       } catch {
         /* trending often times out from serverless */
       }
-      const fallback = asRecord(await getJson("https://openlibrary.org/search.json?q=language%3Aeng&limit=8"));
+      const fallback = asRecord(await getJson(openLibraryFallbackUrl()));
       return asArray(fallback?.docs)
         .map((row) => {
           const w = asRecord(row);

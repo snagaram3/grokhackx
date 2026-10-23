@@ -146,10 +146,22 @@ async function httpText(url: string, accept: string): Promise<string> {
   }
 }
 
+export function redditHotJsonUrl(sub: string, host = "www.reddit.com"): string {
+  return `https://${host}/r/${sub}/hot.json?limit=50&raw_json=1`;
+}
+
+export function redditHotRssUrl(sub: string, host = "www.reddit.com"): string {
+  return `https://${host}/r/${sub}/hot/.rss?limit=40`;
+}
+
+export function arcticShiftUrl(sub: string, after: string): string {
+  return `https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=${sub}&after=${after}&sort=desc&limit=50`;
+}
+
 async function pullJson(sub: string): Promise<Post[]> {
   const urls = [
-    `https://www.reddit.com/r/${sub}/hot.json?limit=50&raw_json=1`,
-    `https://old.reddit.com/r/${sub}/hot.json?limit=50&raw_json=1`,
+    redditHotJsonUrl(sub),
+    redditHotJsonUrl(sub, "old.reddit.com"),
   ];
   let last = "json failed";
   for (const url of urls) {
@@ -173,8 +185,8 @@ async function pullJson(sub: string): Promise<Post[]> {
 
 async function pullRss(sub: string): Promise<Post[]> {
   const urls = [
-    `https://www.reddit.com/r/${sub}/hot/.rss?limit=40`,
-    `https://old.reddit.com/r/${sub}/hot/.rss?limit=40`,
+    redditHotRssUrl(sub),
+    redditHotRssUrl(sub, "old.reddit.com"),
   ];
   let last = "rss failed";
   for (const url of urls) {
@@ -193,7 +205,7 @@ async function pullRss(sub: string): Promise<Post[]> {
 
 async function pullArchive(sub: string): Promise<Post[]> {
   const after = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const url = `https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=${sub}&after=${after}&sort=desc&limit=50`;
+  const url = arcticShiftUrl(sub, after);
   const res = await fetch(url, {
     headers: { Accept: "application/json", "User-Agent": UA },
     cache: "no-store",
