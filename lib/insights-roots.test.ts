@@ -4,6 +4,7 @@ import { mergePatents } from "./insights-store";
 import {
   assembleRoots,
   extractBirthYear,
+  hnTapeFromPosts,
   inceptionFromParents,
   keepCategory,
   measureOriginLag,
@@ -13,6 +14,8 @@ import {
   pickFirstRecord,
   pickSenseTitle,
   resolveInception,
+  wikiPageFromSummary,
+  wikiSensesFromOpenSearch,
   wikidataTime,
   yearIso,
 } from "./insights-roots";
@@ -288,6 +291,146 @@ test("assembleRoots uses a DuckDuckGo abstract when Wikipedia is offline", () =>
   assert.match(trace.originExtract ?? "", /automobile/);
   assert.ok(trace.layers.some((l) => l.kind === "origin"));
   assert.ok(trace.degraded.includes("wikipedia offline"));
+});
+
+test("wikiSensesFromOpenSearch invents a wiki slug and does not drop a title-only hit", () => {
+  const senses = wikiSensesFromOpenSearch(
+    ["Camry", "Toyota Camry", "C++", "Camryn Manheim", "sixth", "dropped"],
+    ["https://en.wikipedia.org/wiki/Camry"],
+  );
+  assert.equal(senses.length, 5);
+  assert.equal(senses[0]?.url, "https://en.wikipedia.org/wiki/Camry");
+  assert.equal(senses[1]?.url, "https://en.wikipedia.org/wiki/Toyota_Camry");
+  assert.equal(senses[1]?.url.includes("%20"), false);
+  assert.equal(senses[2]?.url, "https://en.wikipedia.org/wiki/C%2B%2B");
+  assert.equal(senses.some((s) => s.title === "dropped"), false);
+  assert.deepEqual(wikiSensesFromOpenSearch(undefined, undefined), []);
+  assert.deepEqual(wikiSensesFromOpenSearch([], ["https://en.wikipedia.org/wiki/Camry"]), []);
+});
+
+test("wikiPageFromSummary keeps the chosen page when summary is missing and does not invent WHY", () => {
+  const chosen = { title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" };
+  const senses = [chosen];
+  const offline = wikiPageFromSummary(chosen, null, senses);
+  assert.equal(offline.title, "Toyota Camry");
+  assert.equal(offline.url, chosen.url);
+  assert.equal(offline.extract, "");
+  assert.equal(offline.senses, senses);
+
+  const empty = wikiPageFromSummary(chosen, {}, senses);
+  assert.equal(empty.title, "Toyota Camry");
+  assert.equal(empty.extract, "");
+  assert.equal(empty.url, chosen.url);
+
+  const long = "The Toyota Camry is an automobile. ".repeat(40);
+  const live = wikiPageFromSummary(
+    chosen,
+    {
+      title: "Toyota Camry",
+      extract: long,
+      content_urls: { desktop: { page: "https://en.wikipedia.org/wiki/Toyota_Camry" } },
+    },
+    senses,
+  );
+  assert.equal(live.extract.length, 720);
+  assert.equal(live.url, "https://en.wikipedia.org/wiki/Toyota_Camry");
+});
+
+test("hnTapeFromPosts caps 12 and keeps createdAt without inventing a story URL", () => {
+  const posts = Array.from({ length: 13 }, (_, i) => ({
+    title: `Camry thread ${i} ${"x".repeat(300)}`,
+    url: `https://news.ycombinator.com/item?id=${i}`,
+    createdAt: i === 0 ? "2018-04-01T00:00:00.000Z" : undefined,
+  }));
+  const tape = hnTapeFromPosts(posts);
+  assert.equal(tape.length, 12);
+  assert.equal(tape[0]?.source, "hn");
+  assert.equal(tape[0]?.at, "2018-04-01T00:00:00.000Z");
+  assert.equal(tape[1]?.at, null);
+  assert.equal(tape[0]?.title.length, 200);
+  assert.equal(tape[0]?.snippet.length, 280);
+  assert.equal(tape.some((r) => r.url.includes("item?id=12")), false);
+  assert.deepEqual(hnTapeFromPosts([]), []);
+});
+
+test("keepCategory leftover housekeeping prefixes stay dropped", () => {
+  assert.equal(keepCategory("Articles for deletion"), false);
+  assert.equal(keepCategory("Pages with broken file links"), false);
+  assert.equal(keepCategory("Use dmy dates"), false);
+  assert.equal(keepCategory("Use mdy dates"), false);
+  assert.equal(keepCategory("Short description is different"), false);
+  assert.equal(keepCategory("Webarchive template wayback"), false);
+  assert.equal(keepCategory("Good articles"), false);
+  assert.equal(keepCategory("Featured articles"), false);
+  assert.equal(keepCategory("Toyota vehicles"), true);
+});
+
+test("extractBirthYear leftover first-introduced and 1800/2099 year capture stay locked", () => {
+  assert.equal(extractBirthYear("The Camry was first introduced in 1982."), 1982);
+  assert.equal(extractBirthYear("The plant was founded in 1800."), 1800);
+  assert.equal(extractBirthYear("The line was founded in 2099."), 2099);
+  assert.equal(extractBirthYear("The line was founded in 2100."), null);
+  assert.equal(extractBirthYear("The line was founded in 1799."), null);
+});
+
+test("patentsFromLegacy and patentsFromV2 leftover missing abstract uses USPTO id", () => {
+  const legacy = patentsFromLegacy({
+    patents: [{ patent_number: "4501234", patent_title: "Camry body" }],
+  });
+  assert.equal(legacy[0]?.snippet, "USPTO 4501234");
+  assert.equal(legacy[0]?.at, null);
+
+  const v2 = patentsFromV2({
+    patents: [{ patent_id: "US4501234", patent_title: "Camry body structure" }],
+  });
+  assert.equal(v2[0]?.snippet, "USPTO US4501234");
+  assert.equal(v2[0]?.at, null);
+});
+
+test("assembleRoots leftover wikiBirth without an editor does not invent a byline", () => {
+  const noEditor = assembleRoots({
+    query: "Camry",
+    wiki: {
+      title: "Toyota Camry",
+      url: "https://en.wikipedia.org/wiki/Toyota_Camry",
+      extract: "The Toyota Camry is an automobile sold internationally by Toyota since 1982.",
+      senses: [{ title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" }],
+    },
+    wikiRoot: { firstAt: "2003-02-01T00:00:00Z", firstEditor: null, parents: [] },
+    abstract: null,
+    dated: [],
+    tape: [],
+    ...emptyInception,
+    degraded: [],
+  });
+  assert.equal(
+    noEditor.receipts.find((r) => r.source === "wikipedia")?.snippet,
+    "First Wikipedia revision",
+  );
+  assert.equal((noEditor.receipts.find((r) => r.source === "wikipedia")?.snippet ?? "").includes(" by "), false);
+});
+
+test("assembleRoots leftover origin without a url keeps the extract and omits a receipt", () => {
+  const trace = assembleRoots({
+    query: "Camry",
+    wiki: {
+      title: "Toyota Camry",
+      url: "",
+      extract: "The Toyota Camry is an automobile sold internationally by Toyota since 1982.",
+      senses: [{ title: "Toyota Camry", url: "https://en.wikipedia.org/wiki/Toyota_Camry" }],
+    },
+    wikiRoot: null,
+    abstract: null,
+    dated: [],
+    tape: [],
+    ...emptyInception,
+    degraded: [],
+  });
+  const origin = trace.layers.find((l) => l.kind === "origin");
+  assert.equal(trace.thin, false);
+  assert.match(trace.originExtract ?? "", /automobile/);
+  assert.equal(trace.originUrl, null);
+  assert.equal(origin?.receipt, undefined);
 });
 
 test("assembleRoots stays thin when there is no extract and no dated record", () => {

@@ -106,6 +106,51 @@ export function pickSenseTitle(
   );
 }
 
+export function wikiSensesFromOpenSearch(
+  titles: string[] | undefined,
+  urls: string[] | undefined,
+): { title: string; url: string }[] {
+  return (titles ?? []).slice(0, 5).map((t, i) => ({
+    title: t,
+    url: urls?.[i] || `https://en.wikipedia.org/wiki/${encodeURIComponent(t.replace(/ /g, "_"))}`,
+  }));
+}
+
+export function wikiPageFromSummary(
+  chosen: { title: string; url: string },
+  page:
+    | {
+        title?: string;
+        extract?: string;
+        content_urls?: { desktop?: { page?: string } };
+      }
+    | null
+    | undefined,
+  senses: { title: string; url: string }[],
+): WikiPage {
+  if (!page) {
+    return { title: chosen.title, url: chosen.url, extract: "", senses };
+  }
+  return {
+    title: page.title || chosen.title,
+    url: page.content_urls?.desktop?.page || chosen.url,
+    extract: (page.extract || "").slice(0, 720),
+    senses,
+  };
+}
+
+export function hnTapeFromPosts(
+  posts: Array<{ title: string; url: string; createdAt?: string }>,
+): RootReceipt[] {
+  return posts.slice(0, 12).map((p) => ({
+    title: p.title.slice(0, 200),
+    url: p.url,
+    source: "hn",
+    at: p.createdAt || null,
+    snippet: p.title.slice(0, 280),
+  }));
+}
+
 export function pickFirstRecord(
   wikiBirth: RootReceipt | null,
   dated: RootReceipt[],
@@ -323,33 +368,21 @@ async function wikipediaPage(query: string, senseId?: string | null): Promise<Wi
   const urls = searched[3] ?? [];
   if (!titles.length) return null;
 
-  const senses = titles.slice(0, 5).map((t, i) => ({
-    title: t,
-    url: urls[i] || `https://en.wikipedia.org/wiki/${encodeURIComponent(t.replace(/ /g, "_"))}`,
-  }));
+  const senses = wikiSensesFromOpenSearch(titles, urls);
   const chosen = pickSenseTitle(senses, senseId) ?? senses[0];
-  const pageUrl = chosen.url;
   const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(chosen.title.replace(/ /g, "_"))}`;
   const summaryRes = await fetch(summaryUrl, {
     cache: "no-store",
     headers: { Accept: "application/json", "User-Agent": UA },
     signal: AbortSignal.timeout(12_000),
   });
-  let extract = "";
-  let display = chosen.title;
-  let url = pageUrl;
-  if (summaryRes.ok) {
-    const page = (await summaryRes.json()) as {
-      title?: string;
-      extract?: string;
-      content_urls?: { desktop?: { page?: string } };
-    };
-    display = page.title || chosen.title;
-    extract = (page.extract || "").slice(0, 720);
-    url = page.content_urls?.desktop?.page || pageUrl;
-  }
-
-  return { title: display, url, extract, senses };
+  if (!summaryRes.ok) return wikiPageFromSummary(chosen, null, senses);
+  const page = (await summaryRes.json()) as {
+    title?: string;
+    extract?: string;
+    content_urls?: { desktop?: { page?: string } };
+  };
+  return wikiPageFromSummary(chosen, page, senses);
 }
 
 async function wikipediaRoot(title: string): Promise<WikiRoot> {
@@ -610,14 +643,7 @@ async function pubmedDated(query: string): Promise<RootReceipt[]> {
 }
 
 async function hnTape(query: string): Promise<RootReceipt[]> {
-  const posts = await searchHn(query, 20);
-  return posts.slice(0, 12).map((p) => ({
-    title: p.title.slice(0, 200),
-    url: p.url,
-    source: "hn",
-    at: p.createdAt || null,
-    snippet: p.title.slice(0, 280),
-  }));
+  return hnTapeFromPosts(await searchHn(query, 20));
 }
 
 export function resolveInception(

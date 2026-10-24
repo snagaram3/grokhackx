@@ -63,6 +63,34 @@ function googleNewsRss(q: string, edition = "hl=en&gl=GB&ceid=GB:en"): string {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&${edition}`;
 }
 
+export function googleNewsWorldUrl(): string {
+  return "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en&gl=GB&ceid=GB:en";
+}
+
+export function bbcWorldRssUrl(): string {
+  return "https://feeds.bbci.co.uk/news/world/rss.xml";
+}
+
+export function openLibraryTrendingUrl(): string {
+  return "https://openlibrary.org/trending/daily.json";
+}
+
+export function eonetEventsUrl(): string {
+  return "https://eonet.gsfc.nasa.gov/api/v3/events?limit=12&days=7";
+}
+
+export function usgsQuakesUrl(): string {
+  return "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson";
+}
+
+export function nwsAlertsUrl(): string {
+  return "https://api.weather.gov/alerts/active?status=actual&message_type=alert";
+}
+
+export function fbiWantedUrl(): string {
+  return "https://api.fbi.gov/wanted/v1/list?pageSize=10";
+}
+
 function youtubeItems(data: unknown): Post[] {
   return asArray(asRecord(data)?.items)
     .map((row) => {
@@ -542,9 +570,7 @@ const FEEDS: Feed[] = [
     match: ["usgs", "earthquake"],
     run: async () => {
       const data = asRecord(
-        await getJson(
-          "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson",
-        ),
+        await getJson(usgsQuakesUrl()),
       );
       return asArray(data?.features)
         .map((row) => {
@@ -570,7 +596,7 @@ const FEEDS: Feed[] = [
     category: "Science & Math",
     match: ["eonet", "nasa"],
     run: async () => {
-      const data = asRecord(await getJson("https://eonet.gsfc.nasa.gov/api/v3/events?limit=12&days=7"));
+      const data = asRecord(await getJson(eonetEventsUrl()));
       return asArray(data?.events)
         .map((row) => {
           const e = asRecord(row);
@@ -597,7 +623,7 @@ const FEEDS: Feed[] = [
     match: ["national weather service", "weather.gov", "noaa"],
     run: async () => {
       const data = asRecord(
-        await getJson("https://api.weather.gov/alerts/active?status=actual&message_type=alert"),
+        await getJson(nwsAlertsUrl()),
       );
       return asArray(data?.features)
         .map((row) => {
@@ -748,7 +774,7 @@ const FEEDS: Feed[] = [
           .filter((p): p is Post => Boolean(p));
       }
       try {
-        const data = asRecord(await getJson("https://openlibrary.org/trending/daily.json"));
+        const data = asRecord(await getJson(openLibraryTrendingUrl()));
         const trending = asArray(data?.works)
           .map((row) => {
             const w = asRecord(row);
@@ -868,7 +894,7 @@ const FEEDS: Feed[] = [
     category: "Government",
     match: ["fbi"],
     run: async () => {
-      const data = asRecord(await getJson("https://api.fbi.gov/wanted/v1/list?pageSize=10"));
+      const data = asRecord(await getJson(fbiWantedUrl()));
       return asArray(data?.items)
         .map((row) => {
           const i = asRecord(row);
@@ -1307,7 +1333,7 @@ const FEEDS: Feed[] = [
         return parseRss(await getText(googleNewsRss(topic.trim())), "Google News");
       }
       return parseRss(
-        await getText("https://news.google.com/rss/headlines/section/topic/WORLD?hl=en&gl=GB&ceid=GB:en"),
+        await getText(googleNewsWorldUrl()),
         "Google News",
       );
     },
@@ -1321,7 +1347,7 @@ const FEEDS: Feed[] = [
       if (topic?.trim()) {
         return parseRss(await getText(googleNewsRss(`${topic.trim()} site:bbc.com`)), "BBC");
       }
-      return parseRss(await getText("https://feeds.bbci.co.uk/news/world/rss.xml"), "BBC");
+      return parseRss(await getText(bbcWorldRssUrl()), "BBC");
     },
   },
   {
