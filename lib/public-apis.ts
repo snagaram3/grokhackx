@@ -63,6 +63,49 @@ function googleNewsRss(q: string, edition = "hl=en&gl=GB&ceid=GB:en"): string {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&${edition}`;
 }
 
+/** World Guardian tape — never a Google News site: search. */
+export function guardianWorldRssUrl(): string {
+  return "https://www.theguardian.com/world/rss";
+}
+
+/** Empty-topic Al Jazeera — not the Google News site:aljazeera.com path. */
+export function alJazeeraAllRssUrl(): string {
+  return "https://www.aljazeera.com/xml/rss/all.xml";
+}
+
+export function gdacsRssUrl(): string {
+  return "https://www.gdacs.org/xml/rss.xml";
+}
+
+/** World CoinGecko — not /search?query=. */
+export function coinGeckoTrendingUrl(): string {
+  return "https://api.coingecko.com/api/v3/search/trending";
+}
+
+export function githubEventsUrl(): string {
+  return "https://api.github.com/events";
+}
+
+export function cisaKevUrl(): string {
+  return "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
+}
+
+export function diseaseShUrl(): string {
+  return "https://disease.sh/v3/covid-19/countries?sort=todayCases";
+}
+
+export function fearGreedUrl(): string {
+  return "https://api.alternative.me/fng/?limit=1";
+}
+
+/** World CoinCap — limit=20, not PER_FEED 8. */
+export function coinCapAssetsUrl(): string {
+  return "https://api.coincap.io/v2/assets?limit=20";
+}
+
+export const WIKIPEDIA_FEATURED_AGOS = [0, 1, 2] as const;
+export const WIKIPEDIA_PAGEVIEWS_AGOS = [2, 3, 4, 5, 6] as const;
+
 function youtubeItems(data: unknown): Post[] {
   return asArray(asRecord(data)?.items)
     .map((row) => {
@@ -100,7 +143,7 @@ export function geoFromCoords(raw: unknown, label: string): Post["geo"] | undefi
   return geoPoint(pair[1], pair[0], label);
 }
 
-function post(
+export function publicApiPost(
   title: string,
   url: string,
   score: number,
@@ -120,6 +163,17 @@ function post(
     },
     "collect_public_apis",
   );
+}
+
+function post(
+  title: string,
+  url: string,
+  score: number,
+  sourceApi: string,
+  createdAt?: string,
+  geo?: Post["geo"],
+): Post {
+  return publicApiPost(title, url, score, sourceApi, createdAt, geo);
 }
 
 async function getText(url: string, ms = FEED_MS): Promise<string> {
@@ -155,23 +209,27 @@ function parseRss(xml: string, sourceApi: string): Post[] {
   return posts.slice(0, PER_FEED);
 }
 
-async function getJson(url: string, ms = FEED_MS): Promise<unknown> {
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: { Accept: "application/json, text/plain, */*", "User-Agent": UA },
-    signal: AbortSignal.timeout(ms),
-  });
-  const text = await res.text();
-  if (res.status === 429 || /limit requests/i.test(text)) {
+/** Shared JSON feed gate. Rate-limit bodies become 429 even on a 2xx/5xx status. */
+export function parsePublicApiJsonText(url: string, status: number, text: string): unknown {
+  if (status === 429 || /limit requests/i.test(text)) {
     throw new Error(`${url} 429`);
   }
-  if (!res.ok) throw new Error(`${url} ${res.status}`);
+  if (status < 200 || status >= 300) throw new Error(`${url} ${status}`);
   if (!text || text.startsWith("<")) throw new Error(`${url} not json`);
   try {
     return JSON.parse(text) as unknown;
   } catch {
     throw new Error(`${url} not json`);
   }
+}
+
+async function getJson(url: string, ms = FEED_MS): Promise<unknown> {
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { Accept: "application/json, text/plain, */*", "User-Agent": UA },
+    signal: AbortSignal.timeout(ms),
+  });
+  return parsePublicApiJsonText(url, res.status, await res.text());
 }
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -371,7 +429,7 @@ function wikiPostsFromPageviews(data: unknown): Post[] {
 }
 
 async function wikipediaTape(): Promise<Post[]> {
-  for (const ago of [0, 1, 2]) {
+  for (const ago of WIKIPEDIA_FEATURED_AGOS) {
     const { y, m, day } = utcYmd(ago);
     try {
       const posts = wikiPostsFromFeatured(
@@ -382,7 +440,7 @@ async function wikipediaTape(): Promise<Post[]> {
       /* try older featured, then pageviews */
     }
   }
-  for (const ago of [2, 3, 4, 5, 6]) {
+  for (const ago of WIKIPEDIA_PAGEVIEWS_AGOS) {
     const { y, m, day } = utcYmd(ago);
     try {
       const posts = wikiPostsFromPageviews(
@@ -448,11 +506,15 @@ async function blueskyPosts(topic?: string): Promise<Post[]> {
       `https://public.api.bsky.app/xrpc/app.bsky.feed.getFeed?feed=${encodeURIComponent(BSKY_HOT)}&limit=25`,
     ),
   );
-  if (q) {
-    const needle = q.toLowerCase();
-    return hot.filter((p) => p.title.toLowerCase().includes(needle)).slice(0, PER_FEED);
-  }
-  return hot.slice(0, PER_FEED);
+  return filterBskyHotByTopic(hot, q);
+}
+
+/** What's-hot fallback filter. Substring includes, not tokenHits. Caps PER_FEED. */
+export function filterBskyHotByTopic(hot: Post[], topic?: string | null): Post[] {
+  const q = topic?.trim();
+  if (!q) return hot.slice(0, PER_FEED);
+  const needle = q.toLowerCase();
+  return hot.filter((p) => p.title.toLowerCase().includes(needle)).slice(0, PER_FEED);
 }
 
 const FEEDS: Feed[] = [
@@ -519,7 +581,7 @@ const FEEDS: Feed[] = [
           })
           .filter((p): p is Post => Boolean(p));
       }
-      const data = asRecord(await getJson("https://api.coingecko.com/api/v3/search/trending"));
+      const data = asRecord(await getJson(coinGeckoTrendingUrl()));
       return asArray(data?.coins)
         .map((row) => {
           const item = asRecord(asRecord(row)?.item);
@@ -628,7 +690,7 @@ const FEEDS: Feed[] = [
     name: "GDACS",
     category: "Weather",
     match: ["gdacs", "disaster"],
-    run: async () => parseRss(await getText("https://www.gdacs.org/xml/rss.xml"), "GDACS"),
+    run: async () => parseRss(await getText(gdacsRssUrl()), "GDACS"),
   },
   {
     name: "Open-Meteo",
@@ -826,7 +888,7 @@ const FEEDS: Feed[] = [
           })
           .filter((p): p is Post => Boolean(p));
       }
-      const rows = asArray(await getJson("https://api.github.com/events"));
+      const rows = asArray(await getJson(githubEventsUrl()));
       const counts = new Map<string, { n: number; url: string }>();
       for (const row of rows) {
         const e = asRecord(row);
@@ -892,7 +954,7 @@ const FEEDS: Feed[] = [
     match: ["disease.sh", "disease"],
     run: async () => {
       const rows = asArray(
-        await getJson("https://disease.sh/v3/covid-19/countries?sort=todayCases"),
+        await getJson(diseaseShUrl()),
       );
       return rows
         .slice(0, PER_FEED)
@@ -1274,11 +1336,7 @@ const FEEDS: Feed[] = [
     category: "Security",
     match: ["cisa"],
     run: async () => {
-      const data = asRecord(
-        await getJson(
-          "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
-        ),
-      );
+      const data = asRecord(await getJson(cisaKevUrl()));
       return asArray(data?.vulnerabilities)
         .slice(0, PER_FEED)
         .map((row) => {
@@ -1328,7 +1386,7 @@ const FEEDS: Feed[] = [
     name: "Guardian",
     category: "News",
     match: ["guardian"],
-    run: async () => parseRss(await getText("https://www.theguardian.com/world/rss"), "Guardian"),
+    run: async () => parseRss(await getText(guardianWorldRssUrl()), "Guardian"),
   },
   {
     name: "Reuters",
@@ -1352,7 +1410,7 @@ const FEEDS: Feed[] = [
       if (topic?.trim()) {
         return parseRss(await getText(googleNewsRss(`${topic.trim()} site:aljazeera.com`)), "Al Jazeera");
       }
-      return parseRss(await getText("https://www.aljazeera.com/xml/rss/all.xml"), "Al Jazeera");
+      return parseRss(await getText(alJazeeraAllRssUrl()), "Al Jazeera");
     },
   },
   {
@@ -1428,7 +1486,7 @@ const FEEDS: Feed[] = [
     category: "Cryptocurrency",
     match: ["alternative.me", "fear"],
     run: async () => {
-      const data = asRecord(await getJson("https://api.alternative.me/fng/?limit=1"));
+      const data = asRecord(await getJson(fearGreedUrl()));
       const row = asRecord(asArray(data?.data)[0]);
       const value = str(row?.value);
       const label = str(row?.value_classification);
@@ -1528,7 +1586,7 @@ const FEEDS: Feed[] = [
     match: ["coincap"],
     topicAware: true,
     run: async (_city, topic) => {
-      const data = asRecord(await getJson("https://api.coincap.io/v2/assets?limit=20"));
+      const data = asRecord(await getJson(coinCapAssetsUrl()));
       const rows = asArray(data?.data);
       const q = topic?.trim().toLowerCase();
       const picked = q
