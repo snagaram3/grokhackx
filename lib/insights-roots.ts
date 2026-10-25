@@ -529,18 +529,30 @@ export function patentsFromV2(data: unknown): RootReceipt[] {
   return out;
 }
 
-async function usptoDated(query: string): Promise<RootReceipt[]> {
+/** Legacy first, then v2. Same title query; hosts and page keys stay distinct. */
+export function usptoDatedUrls(query: string): { legacy: string; v2: string } {
   const q = JSON.stringify({ _text_any: { patent_title: query } });
-  const legacy =
-    `https://api.patentsview.org/patents/query?q=${encodeURIComponent(q)}` +
-    `&f=["patent_number","patent_title","patent_date","patent_abstract"]&o={"per_page":5}`;
-  const v2 =
-    `https://search.patentsview.org/api/v1/patent/?q=${encodeURIComponent(q)}` +
-    `&f=["patent_id","patent_title","patent_date","patent_abstract"]&o={"size":5}`;
+  return {
+    legacy:
+      `https://api.patentsview.org/patents/query?q=${encodeURIComponent(q)}` +
+      `&f=["patent_number","patent_title","patent_date","patent_abstract"]&o={"per_page":5}`,
+    v2:
+      `https://search.patentsview.org/api/v1/patent/?q=${encodeURIComponent(q)}` +
+      `&f=["patent_id","patent_title","patent_date","patent_abstract"]&o={"size":5}`,
+  };
+}
 
+/** X-Api-Key only after trim. Empty / whitespace keys stay off the header. */
+export function patentsViewHeaders(apiKey?: string | null): Record<string, string> {
   const headers: Record<string, string> = { Accept: "application/json", "User-Agent": UA };
-  const key = process.env.PATENTS_VIEW_KEY?.trim();
+  const key = apiKey?.trim();
   if (key) headers["X-Api-Key"] = key;
+  return headers;
+}
+
+async function usptoDated(query: string): Promise<RootReceipt[]> {
+  const { legacy, v2 } = usptoDatedUrls(query);
+  const headers = patentsViewHeaders(process.env.PATENTS_VIEW_KEY);
 
   const errors: string[] = [];
   for (const [url, parse] of [

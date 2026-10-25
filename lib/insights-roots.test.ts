@@ -10,9 +10,11 @@ import {
   oldestReceipt,
   patentsFromLegacy,
   patentsFromV2,
+  patentsViewHeaders,
   pickFirstRecord,
   pickSenseTitle,
   resolveInception,
+  usptoDatedUrls,
   wikidataTime,
   yearIso,
 } from "./insights-roots";
@@ -308,4 +310,34 @@ test("assembleRoots stays thin when there is no extract and no dated record", ()
   assert.equal(trace.layers.length, 1);
   assert.equal(trace.layers[0]?.kind, "plug");
   assert.ok(trace.degraded.includes("wikipedia offline"));
+});
+
+test("usptoDatedUrls tries legacy per_page before v2 size, same title query", () => {
+  const { legacy, v2 } = usptoDatedUrls("Toyota Camry");
+  assert.match(legacy, /^https:\/\/api\.patentsview\.org\/patents\/query\?/);
+  assert.match(v2, /^https:\/\/search\.patentsview\.org\/api\/v1\/patent\/\?/);
+  assert.match(legacy, /per_page":5/);
+  assert.match(v2, /size":5/);
+  assert.match(legacy, /patent_number/);
+  assert.match(v2, /patent_id/);
+  assert.equal(legacy.includes("patent_id"), false);
+  assert.equal(v2.includes("patent_number"), false);
+  assert.equal(legacy.includes("search.patentsview.org"), false);
+  assert.equal(v2.includes("api.patentsview.org"), false);
+  assert.match(legacy, /Toyota%20Camry/);
+  assert.match(v2, /Toyota%20Camry/);
+  assert.match(legacy, /_text_any/);
+  assert.match(v2, /_text_any/);
+});
+
+test("patentsViewHeaders adds X-Api-Key only after trim", () => {
+  const bare = patentsViewHeaders();
+  assert.equal(bare.Accept, "application/json");
+  assert.equal(bare["X-Api-Key"], undefined);
+  assert.equal(patentsViewHeaders(null)["X-Api-Key"], undefined);
+  assert.equal(patentsViewHeaders("")["X-Api-Key"], undefined);
+  assert.equal(patentsViewHeaders("   ")["X-Api-Key"], undefined);
+  const keyed = patentsViewHeaders("  dummy-key  ");
+  assert.equal(keyed["X-Api-Key"], "dummy-key");
+  assert.equal(keyed.Accept, "application/json");
 });
