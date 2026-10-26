@@ -227,7 +227,7 @@ export function parsePublicApisReadme(md: string): PublicApiEntry[] {
 export async function loadPublicApiCatalog(): Promise<PublicApiEntry[]> {
   const cached = cacheGet<PublicApiEntry[]>(CATALOG_KEY);
   if (cached?.length) return cached;
-  const res = await fetch(CATALOG_URL, {
+  const res = await fetch(publicApiCatalogUrl(), {
     cache: "no-store",
     headers: { Accept: "text/plain", "User-Agent": UA },
     signal: AbortSignal.timeout(12_000),
@@ -296,6 +296,66 @@ export function vehicleQuery(topic: string): { make: string; model: string; year
   if (!make) return null;
   const model = tokens.filter((t) => t !== make && t !== year).join(" ") || make;
   return year ? { make, model, year } : { make, model };
+}
+
+/** GitHub README catalog — not an individual tape feed. */
+export function publicApiCatalogUrl(): string {
+  return CATALOG_URL;
+}
+
+/** World ESPN scoreboards — UCL, EPL, NFL. Not NBA/MLB. */
+export function espnScoreboardUrls(): string[] {
+  return [
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard",
+    "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard",
+    "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
+  ];
+}
+
+/** Official SpaceX upcoming — Launch Library is the 525 fallback. */
+export function spacexUpcomingUrl(): string {
+  return "https://api.spacexdata.com/v5/launches/upcoming";
+}
+
+/** Launch Library 2 SpaceX fallback — limit=8, lsp__name unencoded. */
+export function spacexLaunchLibraryUrl(): string {
+  return "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=8&lsp__name=SpaceX";
+}
+
+/** USD spot tape — comma-joined pairs, not a history dump. */
+export function frankfurterLatestUrl(): string {
+  return "https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY,INR";
+}
+
+export function carbonIntensityUrl(): string {
+  return "https://api.carbonintensity.org.uk/intensity";
+}
+
+/** World iTunes charts — not the search?term= path. */
+export function itunesChartsUrl(): string {
+  return "https://rss.applemarketingtools.com/api/v2/us/music/most-played/10/songs.json";
+}
+
+export function mastodonTrendsUrl(): string {
+  return "https://mastodon.social/api/v1/trends/tags?limit=10";
+}
+
+export function lobstersHottestUrl(): string {
+  return "https://lobste.rs/hottest.json";
+}
+
+/** World Open Food Facts — unique_scans sort, page_size=8. */
+export function openFoodFactsSearchUrl(): string {
+  return "https://world.openfoodfacts.org/cgi/search.pl?action=process&sort_by=unique_scans_n&page_size=8&json=1&fields=product_name,code,url,unique_scans_n";
+}
+
+/** Worldwide holidays — not a country NextPublicHolidays path. */
+export function nagerHolidaysUrl(): string {
+  return "https://date.nager.at/api/v3/NextPublicHolidaysWorldwide";
+}
+
+export function cryptoCompareNewsUrl(): string {
+  return "https://min-api.cryptocompare.com/data/v2/news/?lang=EN";
 }
 
 function gdeltStamp(raw: string): string | undefined {
@@ -967,11 +1027,7 @@ const FEEDS: Feed[] = [
     category: "Sports & Fitness",
     match: ["espn"],
     run: async () => {
-      const urls = [
-        "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard",
-        "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard",
-        "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
-      ];
+      const urls = espnScoreboardUrls();
       const settled = await Promise.allSettled(urls.map((u) => getJson(u)));
       const posts: Post[] = [];
       for (const item of settled) {
@@ -1001,7 +1057,7 @@ const FEEDS: Feed[] = [
     match: ["spacex"],
     run: async () => {
       try {
-        const rows = asArray(await getJson("https://api.spacexdata.com/v5/launches/upcoming"));
+        const rows = asArray(await getJson(spacexUpcomingUrl()));
         const posts = rows
           .slice(0, PER_FEED)
           .map((row) => {
@@ -1022,7 +1078,7 @@ const FEEDS: Feed[] = [
         /* api.spacexdata.com often 525s; Launch Library 2 is free and live */
       }
       const data = asRecord(
-        await getJson("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=8&lsp__name=SpaceX"),
+        await getJson(spacexLaunchLibraryUrl()),
       );
       return asArray(data?.results)
         .map((row) => {
@@ -1046,7 +1102,7 @@ const FEEDS: Feed[] = [
     category: "Currency Exchange",
     match: ["frankfurter"],
     run: async () => {
-      const data = asRecord(await getJson("https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY,INR"));
+      const data = asRecord(await getJson(frankfurterLatestUrl()));
       const rates = asRecord(data?.rates);
       if (!rates) return [];
       return Object.entries(rates).map(([code, value]) =>
@@ -1115,7 +1171,7 @@ const FEEDS: Feed[] = [
     category: "Environment",
     match: ["carbon intensity"],
     run: async () => {
-      const data = asRecord(await getJson("https://api.carbonintensity.org.uk/intensity"));
+      const data = asRecord(await getJson(carbonIntensityUrl()));
       const row = asRecord(asArray(data?.data)[0]);
       const intensity = asRecord(row?.intensity);
       if (!intensity) return [];
@@ -1159,7 +1215,7 @@ const FEEDS: Feed[] = [
           .filter((p): p is Post => Boolean(p));
       }
       const data = asRecord(
-        await getJson("https://rss.applemarketingtools.com/api/v2/us/music/most-played/10/songs.json"),
+        await getJson(itunesChartsUrl()),
       );
       const feed = asRecord(data?.feed);
       return asArray(feed?.results)
@@ -1183,7 +1239,7 @@ const FEEDS: Feed[] = [
     category: "Social",
     match: ["mastodon"],
     run: async () => {
-      const rows = asArray(await getJson("https://mastodon.social/api/v1/trends/tags?limit=10"));
+      const rows = asArray(await getJson(mastodonTrendsUrl()));
       return rows
         .map((row) => {
           const t = asRecord(row);
@@ -1209,7 +1265,7 @@ const FEEDS: Feed[] = [
     category: "Social",
     match: ["lobsters", "lobste.rs"],
     run: async () => {
-      const rows = asArray(await getJson("https://lobste.rs/hottest.json"));
+      const rows = asArray(await getJson(lobstersHottestUrl()));
       return rows
         .map((row) => {
           const s = asRecord(row);
@@ -1226,9 +1282,7 @@ const FEEDS: Feed[] = [
     match: ["open food facts"],
     run: async () => {
       const data = asRecord(
-        await getJson(
-          "https://world.openfoodfacts.org/cgi/search.pl?action=process&sort_by=unique_scans_n&page_size=8&json=1&fields=product_name,code,url,unique_scans_n",
-        ),
+        await getJson(openFoodFactsSearchUrl()),
       );
       return asArray(data?.products)
         .map((row) => {
@@ -1251,7 +1305,7 @@ const FEEDS: Feed[] = [
     category: "Calendar",
     match: ["nager.date", "nager"],
     run: async () => {
-      const rows = asArray(await getJson("https://date.nager.at/api/v3/NextPublicHolidaysWorldwide"));
+      const rows = asArray(await getJson(nagerHolidaysUrl()));
       return rows
         .slice(0, PER_FEED)
         .map((row) => {
@@ -1559,7 +1613,7 @@ const FEEDS: Feed[] = [
     category: "Cryptocurrency",
     match: ["cryptocompare"],
     run: async () => {
-      const data = asRecord(await getJson("https://min-api.cryptocompare.com/data/v2/news/?lang=EN"));
+      const data = asRecord(await getJson(cryptoCompareNewsUrl()));
       return asArray(data?.Data)
         .slice(0, PER_FEED)
         .map((row) => {

@@ -14,7 +14,11 @@ import { tokenHits } from "./phrase-hit";
 import { topicBoost } from "./rl";
 import { PLATFORMS, type Platform, type Post, type RawSignals, type Topic } from "./types";
 
-function compact(posts: Post[], n: number) {
+/** Caps Gemini sees — reddit/hn 25, x 15. Not singletonTopics 18. */
+export const CLUSTER_COMPACT = { reddit: 25, hn: 25, x: 15 } as const;
+
+/** Score-ranked Gemini view. `i` is post-sort rank, not the input index. */
+export function compact(posts: Post[], n: number) {
   return [...posts]
     .sort((a, b) => b.score - a.score)
     .slice(0, n)
@@ -25,7 +29,8 @@ function empty() {
   return { score: 0, posts: [] as Post[] };
 }
 
-function hydrate(
+/** X score is the first post, not scalePosts. Other platforms scale. Slice 5. */
+export function hydrate(
   label: string,
   buckets: Record<Platform, Post[]>,
   match?: Topic["match"],
@@ -60,9 +65,9 @@ export async function clusterTopics(
   signals: RawSignals,
   prev?: Topic[],
 ): Promise<Topic[]> {
-  const reddit = compact(signals.reddit, 25);
-  const hn = compact(signals.hn, 25);
-  const x = compact(signals.x, 15);
+  const reddit = compact(signals.reddit, CLUSTER_COMPACT.reddit);
+  const hn = compact(signals.hn, CLUSTER_COMPACT.hn);
+  const x = compact(signals.x, CLUSTER_COMPACT.x);
   const all = {
     reddit: signals.reddit,
     hn: signals.hn,
