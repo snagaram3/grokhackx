@@ -16,7 +16,8 @@ const MAX_POSTS = 160;
 const FEED_MS = 8_000;
 const DEFAULT_FEED_BUDGET = 28;
 const TOPIC_FEED_BUDGET = 32;
-const GDELT_TTL_MS = 10 * 60_000;
+/** World GDELT ArtList cache — 10 minutes, not 5 and not 24h. */
+export const GDELT_TTL_MS = 10 * 60_000;
 const BSKY_HOT =
   "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot";
 
@@ -122,7 +123,8 @@ function post(
   );
 }
 
-async function getText(url: string, ms = FEED_MS): Promise<string> {
+/** RSS/XML fetch. !ok throws `${url} ${status}` and does not apply the JSON 429-body gate. */
+export async function getText(url: string, ms = FEED_MS): Promise<string> {
   const res = await fetch(url, {
     cache: "no-store",
     headers: { Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*", "User-Agent": UA },
@@ -298,6 +300,58 @@ export function vehicleQuery(topic: string): { make: string; model: string; year
   return year ? { make, model, year } : { make, model };
 }
 
+/** NYT homepage RSS — not World.xml and not a Google News `site:` search. */
+export function nytHomeRssUrl(): string {
+  return "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml";
+}
+
+/** NPR News RSS (id 1001) — not a program feed. */
+export function nprNewsRssUrl(): string {
+  return "https://feeds.npr.org/1001/rss.xml";
+}
+
+/** TechCrunch site feed — not /tag/ or Google News. */
+export function techCrunchFeedUrl(): string {
+  return "https://techcrunch.com/feed/";
+}
+
+/** World GDELT tape is cached; a topic query bypasses it. */
+export function gdeltUsesWorldCache(topic?: string): boolean {
+  return !Boolean(topic?.trim());
+}
+
+/** Cache hit only while `exp` is strictly in the future. */
+export function gdeltTapeFresh(exp: number, now = Date.now()): boolean {
+  return exp > now;
+}
+
+/** First non-empty featured/pageviews batch wins. All empty throws — does not invent a wiki URL. */
+export function pickWikipediaTape(batches: Post[][]): Post[] {
+  for (const posts of batches) {
+    if (posts.length) return posts;
+  }
+  throw new Error("Wikipedia empty");
+}
+
+/** OpenSearch hits win; empty/topic-miss falls through to the featured tape. */
+export async function wikiTopicOrTape(
+  searchPosts: Post[],
+  tape: () => Promise<Post[]>,
+): Promise<Post[]> {
+  return searchPosts.length ? searchPosts : tape();
+}
+
+/** Search hits win. Empty search or throw falls through to what's-hot (filtered when topic is set). */
+export function bskySearchOrHot(searchHits: Post[], hot: Post[], topic?: string): Post[] {
+  if (searchHits.length) return searchHits;
+  const q = topic?.trim();
+  if (q) {
+    const needle = q.toLowerCase();
+    return hot.filter((p) => p.title.toLowerCase().includes(needle)).slice(0, PER_FEED);
+  }
+  return hot.slice(0, PER_FEED);
+}
+
 function gdeltStamp(raw: string): string | undefined {
   const m = raw.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
   if (!m) return raw || undefined;
@@ -395,7 +449,7 @@ async function wikipediaTape(): Promise<Post[]> {
       /* keep walking back */
     }
   }
-  throw new Error("Wikipedia empty");
+  return pickWikipediaTape([]);
 }
 
 function bskyHref(uri: string, handle: string): string {
@@ -431,28 +485,25 @@ function mapBskyFeed(data: unknown): Post[] {
 
 async function blueskyPosts(topic?: string): Promise<Post[]> {
   const q = topic?.trim();
+  let hits: Post[] = [];
   if (q) {
     try {
-      const hit = mapBskySearch(
+      hits = mapBskySearch(
         await getJson(
           `https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(q)}&limit=${PER_FEED}`,
         ),
       );
-      if (hit.length) return hit;
     } catch {
       /* search is Cloudflare-blocked from some clouds; fall through to what's-hot */
     }
   }
+  if (hits.length) return bskySearchOrHot(hits, [], topic);
   const hot = mapBskyFeed(
     await getJson(
       `https://public.api.bsky.app/xrpc/app.bsky.feed.getFeed?feed=${encodeURIComponent(BSKY_HOT)}&limit=25`,
     ),
   );
-  if (q) {
-    const needle = q.toLowerCase();
-    return hot.filter((p) => p.title.toLowerCase().includes(needle)).slice(0, PER_FEED);
-  }
-  return hot.slice(0, PER_FEED);
+  return bskySearchOrHot([], hot, topic);
 }
 
 const FEEDS: Feed[] = [
@@ -462,8 +513,8 @@ const FEEDS: Feed[] = [
     match: ["gdelt"],
     topicAware: true,
     run: async (_city, topic) => {
-      if (topic?.trim()) return fetchGdelt(topic);
-      if (gdeltTape && gdeltTape.exp > Date.now()) return gdeltTape.posts;
+      if (!gdeltUsesWorldCache(topic)) return fetchGdelt(topic);
+      if (gdeltTape && gdeltTapeFresh(gdeltTape.exp)) return gdeltTape.posts;
       const posts = fetchGdelt();
       gdeltTape = { exp: Date.now() + GDELT_TTL_MS, posts };
       return posts;
@@ -488,7 +539,7 @@ const FEEDS: Feed[] = [
             title && urls[i] ? post(`Wikipedia: ${title}`, urls[i], 80 - i * 4, "Wikipedia") : null,
           )
           .filter((p): p is Post => Boolean(p));
-        if (posts.length) return posts;
+        return wikiTopicOrTape(posts, () => wikipediaTape());
       }
       return wikipediaTape();
     },
@@ -1372,19 +1423,19 @@ const FEEDS: Feed[] = [
     name: "NYT",
     category: "News",
     match: ["new york times", "nytimes"],
-    run: async () => parseRss(await getText("https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"), "NYT"),
+    run: async () => parseRss(await getText(nytHomeRssUrl()), "NYT"),
   },
   {
     name: "NPR",
     category: "News",
     match: ["npr"],
-    run: async () => parseRss(await getText("https://feeds.npr.org/1001/rss.xml"), "NPR"),
+    run: async () => parseRss(await getText(nprNewsRssUrl()), "NPR"),
   },
   {
     name: "TechCrunch",
     category: "Technology",
     match: ["techcrunch"],
-    run: async () => parseRss(await getText("https://techcrunch.com/feed/"), "TechCrunch"),
+    run: async () => parseRss(await getText(techCrunchFeedUrl()), "TechCrunch"),
   },
   {
     name: "arXiv",
