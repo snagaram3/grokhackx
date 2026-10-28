@@ -63,6 +63,16 @@ function googleNewsRss(q: string, edition = "hl=en&gl=GB&ceid=GB:en"): string {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&${edition}`;
 }
 
+/** World tape is `site:reuters.com when:1d`, not WORLD headlines or a Reuters.com RSS. */
+export function reutersRssUrl(topic?: string): string {
+  return googleNewsRss(topic?.trim() ? `${topic.trim()} site:reuters.com` : "site:reuters.com when:1d");
+}
+
+/** World tape is `site:nhk.or.jp when:1d`, not WORLD headlines or nhk.or.jp/rss. */
+export function nhkWorldRssUrl(topic?: string): string {
+  return googleNewsRss(topic?.trim() ? `${topic.trim()} site:nhk.or.jp` : "site:nhk.or.jp when:1d");
+}
+
 function youtubeItems(data: unknown): Post[] {
   return asArray(asRecord(data)?.items)
     .map((row) => {
@@ -74,6 +84,25 @@ function youtubeItems(data: unknown): Post[] {
       return post(title, `https://www.youtube.com/watch?v=${id}`, 60, "YouTube", str(snippet?.publishedAt) || undefined);
     })
     .filter((p): p is Post => Boolean(p));
+}
+
+/** Popular charts are fetched per region; first URL wins, cap PER_FEED. */
+export function mergeYoutubeItems(batches: Post[][]): Post[] {
+  const seen = new Set<string>();
+  const posts: Post[] = [];
+  for (const batch of batches) {
+    for (const p of batch) {
+      if (seen.has(p.url)) continue;
+      seen.add(p.url);
+      posts.push(p);
+    }
+  }
+  return posts.slice(0, PER_FEED);
+}
+
+/** Camry uses search; empty/whitespace stay on mostPopular charts. */
+export function youtubeUsesSearch(topic?: string): boolean {
+  return Boolean(topic?.trim());
 }
 
 /** Proven lat/lon only. GeoJSON callers must swap [lon, lat] via geoFromCoords. */
@@ -132,7 +161,7 @@ async function getText(url: string, ms = FEED_MS): Promise<string> {
   return res.text();
 }
 
-function parseRss(xml: string, sourceApi: string): Post[] {
+export function parseRss(xml: string, sourceApi: string): Post[] {
   if (!xml.includes("<item") && !xml.includes("<entry")) throw new Error(`${sourceApi} not rss`);
   const chunks = xml.split(/<entry[\s>]|<item[\s>]/).slice(1);
   const posts: Post[] = [];
@@ -250,6 +279,16 @@ function utcYmd(daysAgo: number) {
 
 function youtubeKey(): string {
   return process.env.YOUTUBE_API_KEY?.trim() || "";
+}
+
+/** Camry uses /search; empty/whitespace stay on /search/trending. */
+export function coinGeckoUsesSearch(topic?: string): boolean {
+  return Boolean(topic?.trim());
+}
+
+/** Topic miss returns the search hits (even `[]`) and never mixes in trending coins. */
+export function coinGeckoSearchOrTrending(searchHits: Post[], trending: Post[], topic?: string): Post[] {
+  return coinGeckoUsesSearch(topic) ? searchHits : trending;
 }
 
 const MODEL_MAKE: Record<string, { make: string; model: string }> = {
@@ -499,11 +538,12 @@ const FEEDS: Feed[] = [
     match: ["coingecko"],
     topicAware: true,
     run: async (_city, topic) => {
-      if (topic?.trim()) {
+      const q = topic?.trim();
+      if (coinGeckoUsesSearch(topic) && q) {
         const data = asRecord(
-          await getJson(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(topic.trim())}`),
+          await getJson(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`),
         );
-        return asArray(data?.coins)
+        const searchHits = asArray(data?.coins)
           .slice(0, PER_FEED)
           .map((row, i) => {
             const c = asRecord(row);
@@ -518,9 +558,10 @@ const FEEDS: Feed[] = [
             );
           })
           .filter((p): p is Post => Boolean(p));
+        return coinGeckoSearchOrTrending(searchHits, [], topic);
       }
       const data = asRecord(await getJson("https://api.coingecko.com/api/v3/search/trending"));
-      return asArray(data?.coins)
+      const trending = asArray(data?.coins)
         .map((row) => {
           const item = asRecord(asRecord(row)?.item);
           if (!item || !str(item.name)) return null;
@@ -534,6 +575,7 @@ const FEEDS: Feed[] = [
         })
         .filter((p): p is Post => Boolean(p))
         .slice(0, PER_FEED);
+      return coinGeckoSearchOrTrending([], trending, topic);
     },
   },
   {
@@ -1335,13 +1377,7 @@ const FEEDS: Feed[] = [
     category: "News",
     match: ["reuters"],
     topicAware: true,
-    run: async (_city, topic) =>
-      parseRss(
-        await getText(
-          googleNewsRss(topic?.trim() ? `${topic.trim()} site:reuters.com` : "site:reuters.com when:1d"),
-        ),
-        "Reuters",
-      ),
+    run: async (_city, topic) => parseRss(await getText(reutersRssUrl(topic)), "Reuters"),
   },
   {
     name: "Al Jazeera",
@@ -1360,13 +1396,7 @@ const FEEDS: Feed[] = [
     category: "News",
     match: ["nhk"],
     topicAware: true,
-    run: async (_city, topic) =>
-      parseRss(
-        await getText(
-          googleNewsRss(topic?.trim() ? `${topic.trim()} site:nhk.or.jp` : "site:nhk.or.jp when:1d"),
-        ),
-        "NHK World",
-      ),
+    run: async (_city, topic) => parseRss(await getText(nhkWorldRssUrl(topic)), "NHK World"),
   },
   {
     name: "NYT",
@@ -1654,7 +1684,7 @@ const FEEDS: Feed[] = [
       const key = youtubeKey();
       if (!key) return [];
       const q = topic?.trim();
-      if (q) {
+      if (youtubeUsesSearch(topic) && q) {
         return youtubeItems(
           await getJson(
             `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_FEED}&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key)}`,
@@ -1668,17 +1698,12 @@ const FEEDS: Feed[] = [
           ),
         ),
       );
-      const seen = new Set<string>();
-      const posts: Post[] = [];
+      const batches: Post[][] = [];
       for (const item of settled) {
         if (item.status !== "fulfilled") continue;
-        for (const p of youtubeItems(item.value)) {
-          if (seen.has(p.url)) continue;
-          seen.add(p.url);
-          posts.push(p);
-        }
+        batches.push(youtubeItems(item.value));
       }
-      return posts.slice(0, PER_FEED);
+      return mergeYoutubeItems(batches);
     },
   },
 ];
