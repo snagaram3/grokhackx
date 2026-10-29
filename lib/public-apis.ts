@@ -132,7 +132,12 @@ async function getText(url: string, ms = FEED_MS): Promise<string> {
   return res.text();
 }
 
-function parseRss(xml: string, sourceApi: string): Post[] {
+/** Rank falls 80, 77, 74… and never below 5. Index is kept posts, not raw chunks. */
+export function rssRankScore(index: number): number {
+  return Math.max(5, 80 - index * 3);
+}
+
+export function parseRss(xml: string, sourceApi: string): Post[] {
   if (!xml.includes("<item") && !xml.includes("<entry")) throw new Error(`${sourceApi} not rss`);
   const chunks = xml.split(/<entry[\s>]|<item[\s>]/).slice(1);
   const posts: Post[] = [];
@@ -149,7 +154,7 @@ function parseRss(xml: string, sourceApi: string): Post[] {
       chunk.match(/<pubDate>([^<]+)<\/pubDate>/i)?.[1] ??
       new Date().toISOString();
     if (!title || !href) continue;
-    posts.push(post(title, href.trim(), Math.max(5, 80 - posts.length * 3), sourceApi, published));
+    posts.push(post(title, href.trim(), rssRankScore(posts.length), sourceApi, published));
   }
   if (!posts.length) throw new Error(`${sourceApi} rss empty`);
   return posts.slice(0, PER_FEED);
@@ -248,8 +253,18 @@ function utcYmd(daysAgo: number) {
   };
 }
 
-function youtubeKey(): string {
-  return process.env.YOUTUBE_API_KEY?.trim() || "";
+/** Trimmed YouTube key. Empty / whitespace is "" so include() and run skip fetch. */
+export function youtubeKey(raw = process.env.YOUTUBE_API_KEY): string {
+  return raw?.trim() || "";
+}
+
+/** No key → `[]` without calling the fetcher. Dummy keys still run. Does not read env. */
+export async function youtubePostsIfKeyed(
+  key: string | undefined,
+  fetchPosts: () => Promise<Post[]>,
+): Promise<Post[]> {
+  if (!key?.trim()) return [];
+  return fetchPosts();
 }
 
 const MODEL_MAKE: Record<string, { make: string; model: string }> = {
@@ -1652,33 +1667,34 @@ const FEEDS: Feed[] = [
     include: () => Boolean(youtubeKey()),
     run: async (city, topic) => {
       const key = youtubeKey();
-      if (!key) return [];
-      const q = topic?.trim();
-      if (q) {
-        return youtubeItems(
-          await getJson(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_FEED}&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key)}`,
-          ),
-        ).slice(0, PER_FEED);
-      }
-      const settled = await Promise.allSettled(
-        youtubeRegions(city).map((region) =>
-          getJson(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode=${region}&maxResults=${PER_FEED}&key=${encodeURIComponent(key)}`,
-          ),
-        ),
-      );
-      const seen = new Set<string>();
-      const posts: Post[] = [];
-      for (const item of settled) {
-        if (item.status !== "fulfilled") continue;
-        for (const p of youtubeItems(item.value)) {
-          if (seen.has(p.url)) continue;
-          seen.add(p.url);
-          posts.push(p);
+      return youtubePostsIfKeyed(key, async () => {
+        const q = topic?.trim();
+        if (q) {
+          return youtubeItems(
+            await getJson(
+              `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_FEED}&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key)}`,
+            ),
+          ).slice(0, PER_FEED);
         }
-      }
-      return posts.slice(0, PER_FEED);
+        const settled = await Promise.allSettled(
+          youtubeRegions(city).map((region) =>
+            getJson(
+              `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode=${region}&maxResults=${PER_FEED}&key=${encodeURIComponent(key)}`,
+            ),
+          ),
+        );
+        const seen = new Set<string>();
+        const posts: Post[] = [];
+        for (const item of settled) {
+          if (item.status !== "fulfilled") continue;
+          for (const p of youtubeItems(item.value)) {
+            if (seen.has(p.url)) continue;
+            seen.add(p.url);
+            posts.push(p);
+          }
+        }
+        return posts.slice(0, PER_FEED);
+      });
     },
   },
 ];
