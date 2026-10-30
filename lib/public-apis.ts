@@ -11,11 +11,11 @@ const CATALOG_URL =
 const UA =
   "HawkxAI/1.0 (+https://github.com/snagaram3/grokhackx; srihari.ec09@gmail.com)";
 const CATALOG_KEY = "public-apis:catalog";
-const PER_FEED = 8;
-const MAX_POSTS = 160;
+export const PER_FEED = 8;
+export const MAX_POSTS = 160;
 const FEED_MS = 8_000;
-const DEFAULT_FEED_BUDGET = 28;
-const TOPIC_FEED_BUDGET = 32;
+export const DEFAULT_FEED_BUDGET = 28;
+export const TOPIC_FEED_BUDGET = 32;
 const GDELT_TTL_MS = 10 * 60_000;
 const BSKY_HOT =
   "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot";
@@ -178,7 +178,7 @@ function asRecord(v: unknown): Record<string, unknown> | null {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
 
-function asArray(v: unknown): unknown[] {
+export function asArray(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
 
@@ -186,7 +186,8 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-function num(v: unknown): number {
+/** Junk / NaN / Infinity scores become 0 instead of leaking into rank. */
+export function num(v: unknown): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
 }
@@ -1706,6 +1707,36 @@ function selectFeeds(topic?: string, enabledSources?: string[]): Feed[] {
   );
 }
 
+/** Collect-time per-feed cap. Mapper leftovers past 8 never reach the desk. */
+export function capFeedPosts<T>(posts: T[]): T[] {
+  return posts.slice(0, PER_FEED);
+}
+
+/** Desk-wide cap. World budget 28×8=224 would overflow without this. */
+export function capPublicPosts<T>(posts: T[]): T[] {
+  return posts.slice(0, MAX_POSTS);
+}
+
+/** Rejected / empty feeds are not live and do not invent posts. Over-8 chunks cap. */
+export function takeFeedChunk(
+  item: PromiseSettledResult<Post[]>,
+  feed: { name: string; category: string },
+): { posts: Post[]; stat: PublicApiFeedStat; live: boolean } {
+  if (item.status !== "fulfilled") {
+    return {
+      posts: [],
+      stat: { name: feed.name, category: feed.category, posts: 0 },
+      live: false,
+    };
+  }
+  const posts = capFeedPosts(item.value);
+  return {
+    posts,
+    stat: { name: feed.name, category: feed.category, posts: posts.length },
+    live: posts.length > 0,
+  };
+}
+
 export async function collectPublicApis(
   city: CityId = "all",
   topic?: string,
@@ -1732,15 +1763,13 @@ export async function collectPublicApis(
     const feed = feeds[i];
     if (item.status !== "fulfilled") {
       console.warn(`[public-apis] ${feed.name} fail`, item.reason);
-      feedStats.push({ name: feed.name, category: feed.category, posts: 0 });
-      return;
     }
-    const chunk = item.value.slice(0, PER_FEED);
-    feedStats.push({ name: feed.name, category: feed.category, posts: chunk.length });
-    if (!chunk.length) return;
+    const taken = takeFeedChunk(item, feed);
+    feedStats.push(taken.stat);
+    if (!taken.live) return;
     liveNames.push(feed.name);
     categories.add(feed.category);
-    posts.push(...chunk);
+    posts.push(...taken.posts);
   });
 
   const ingest: PublicApiIngest = {
@@ -1755,5 +1784,5 @@ export async function collectPublicApis(
   console.log(
     `[public-apis] catalog=${ingest.catalog} open=${open.length} live=${ingest.live}/${ingest.attempted} posts=${posts.length}${q ? ` topic="${q}"` : ""}${enabledSources ? ` filtered=${enabledSources.length}` : ""}`,
   );
-  return { posts: posts.slice(0, MAX_POSTS), ingest };
+  return { posts: capPublicPosts(posts), ingest };
 }
