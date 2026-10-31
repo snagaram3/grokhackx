@@ -13,7 +13,7 @@ const UA =
 const CATALOG_KEY = "public-apis:catalog";
 const PER_FEED = 8;
 const MAX_POSTS = 160;
-const FEED_MS = 8_000;
+export const FEED_MS = 8_000;
 const DEFAULT_FEED_BUDGET = 28;
 const TOPIC_FEED_BUDGET = 32;
 const GDELT_TTL_MS = 10 * 60_000;
@@ -174,7 +174,8 @@ async function getJson(url: string, ms = FEED_MS): Promise<unknown> {
   }
 }
 
-function asRecord(v: unknown): Record<string, unknown> | null {
+/** Arrays / null / strings are not records — mapper `.items` walks must not treat a list as a map. */
+export function asRecord(v: unknown): Record<string, unknown> | null {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
 
@@ -182,7 +183,8 @@ function asArray(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
 
-function str(v: unknown): string {
+/** Non-strings become "" so numeric / object titles cannot leak into kept receipts. */
+export function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
@@ -236,6 +238,28 @@ export async function loadPublicApiCatalog(): Promise<PublicApiEntry[]> {
   const entries = parsePublicApisReadme(await res.text());
   cacheSet(CATALOG_KEY, entries);
   return entries;
+}
+
+/** Catalog fetch fail is swallowed so the tape still collects. Does not invent a catalog URL. */
+export async function tryLoadPublicApiCatalog(
+  load: () => Promise<PublicApiEntry[]> = loadPublicApiCatalog,
+): Promise<PublicApiEntry[] | null> {
+  try {
+    return await load();
+  } catch (err) {
+    console.warn("[public-apis] catalog failed", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/** Missing catalog is 0 rows, not a throw. Collect still proceeds. */
+export function ingestCatalogCount(catalog: PublicApiEntry[] | null | undefined): number {
+  return catalog?.length ?? 0;
+}
+
+/** Health list is busiest-first. Does not mutate the collect-order stats. */
+export function sortIngestFeeds(feeds: PublicApiFeedStat[]): PublicApiFeedStat[] {
+  return feeds.toSorted((a, b) => b.posts - a.posts);
 }
 
 function utcYmd(daysAgo: number) {
@@ -1711,12 +1735,7 @@ export async function collectPublicApis(
   topic?: string,
   enabledSources?: string[],
 ): Promise<PublicApiCollect> {
-  let catalog: PublicApiEntry[] | null = null;
-  try {
-    catalog = await loadPublicApiCatalog();
-  } catch (err) {
-    console.warn("[public-apis] catalog failed", err instanceof Error ? err.message : err);
-  }
+  const catalog = await tryLoadPublicApiCatalog();
 
   const open = catalog?.filter((e) => noAuth(e.auth) && e.https) ?? [];
   const q = topic?.trim() || undefined;
@@ -1744,12 +1763,12 @@ export async function collectPublicApis(
   });
 
   const ingest: PublicApiIngest = {
-    catalog: catalog?.length ?? 0,
+    catalog: ingestCatalogCount(catalog),
     live: liveNames.length,
     attempted: feeds.length,
     categories: [...categories],
     sources: liveNames,
-    feeds: feedStats.toSorted((a, b) => b.posts - a.posts),
+    feeds: sortIngestFeeds(feedStats),
     topic: q,
   };
   console.log(
