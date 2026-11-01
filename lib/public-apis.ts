@@ -8,9 +8,10 @@ import type { Post, PublicApiFeedStat, PublicApiIngest } from "./types";
 
 const CATALOG_URL =
   "https://raw.githubusercontent.com/public-apis/public-apis/master/README.md";
-const UA =
+export const UA =
   "HawkxAI/1.0 (+https://github.com/snagaram3/grokhackx; srihari.ec09@gmail.com)";
-const CATALOG_KEY = "public-apis:catalog";
+export const CATALOG_KEY = "public-apis:catalog";
+export const CATALOG_MS = 12_000;
 const PER_FEED = 8;
 const MAX_POSTS = 160;
 const FEED_MS = 8_000;
@@ -224,13 +225,18 @@ export function parsePublicApisReadme(md: string): PublicApiEntry[] {
   return entries;
 }
 
+/** Empty / missing catalog is a miss so collect still fetches. A [] cache must not lock the tape. */
+export function catalogCacheHit(cached: PublicApiEntry[] | undefined | null): cached is PublicApiEntry[] {
+  return Boolean(cached?.length);
+}
+
 export async function loadPublicApiCatalog(): Promise<PublicApiEntry[]> {
   const cached = cacheGet<PublicApiEntry[]>(CATALOG_KEY);
-  if (cached?.length) return cached;
+  if (catalogCacheHit(cached)) return cached;
   const res = await fetch(CATALOG_URL, {
     cache: "no-store",
     headers: { Accept: "text/plain", "User-Agent": UA },
-    signal: AbortSignal.timeout(12_000),
+    signal: AbortSignal.timeout(CATALOG_MS),
   });
   if (!res.ok) throw new Error(`public-apis catalog ${res.status}`);
   const entries = parsePublicApisReadme(await res.text());
