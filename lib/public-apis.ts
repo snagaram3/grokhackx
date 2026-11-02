@@ -14,6 +14,8 @@ const CATALOG_KEY = "public-apis:catalog";
 const PER_FEED = 8;
 const MAX_POSTS = 160;
 const FEED_MS = 8_000;
+/** JSON feeds ask for JSON, not RSS/XML. Catalog README Accept stays text/plain. */
+export const JSON_ACCEPT = "application/json, text/plain, */*";
 const DEFAULT_FEED_BUDGET = 28;
 const TOPIC_FEED_BUDGET = 32;
 const GDELT_TTL_MS = 10 * 60_000;
@@ -155,10 +157,11 @@ function parseRss(xml: string, sourceApi: string): Post[] {
   return posts.slice(0, PER_FEED);
 }
 
-async function getJson(url: string, ms = FEED_MS): Promise<unknown> {
+/** JSON feed fetch. Accept is application/json, not RSS/XML. */
+export async function getJson(url: string, ms = FEED_MS): Promise<unknown> {
   const res = await fetch(url, {
     cache: "no-store",
-    headers: { Accept: "application/json, text/plain, */*", "User-Agent": UA },
+    headers: { Accept: JSON_ACCEPT, "User-Agent": UA },
     signal: AbortSignal.timeout(ms),
   });
   const text = await res.text();
