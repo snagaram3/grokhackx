@@ -1,7 +1,10 @@
-const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
-const BASE = "https://generativelanguage.googleapis.com/v1beta";
-const TIMEOUT_MS = 55_000;
-const SEARCH_TIMEOUT_MS = 90_000;
+export const GEMINI_MODEL_DEFAULT = "gemini-3.5-flash";
+export const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+export const TIMEOUT_MS = 55_000;
+export const SEARCH_TIMEOUT_MS = 90_000;
+
+const MODEL = process.env.GEMINI_MODEL || GEMINI_MODEL_DEFAULT;
+const BASE = GEMINI_BASE;
 
 export function googleApiKey(): string | undefined {
   const k = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
