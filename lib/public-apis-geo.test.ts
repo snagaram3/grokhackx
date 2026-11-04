@@ -31,3 +31,37 @@ test("geoPoint trims and caps the place label at 80 chars", () => {
   assert.equal(geo?.label.length, 80);
   assert.equal(geo?.lat, 35.68);
 });
+
+test("geoFromCoords ignores USGS depth on a 3-element Position", () => {
+  // USGS Point coordinates are [longitude, latitude, depth_km].
+  // Treating lon as lat would reject this Bay Area pin (lon is outside ±90).
+  const bay = geoFromCoords([-122.3965, 37.7553, 8.12], "M 4.2 - San Francisco Bay");
+  assert.equal(bay?.lat, 37.7553);
+  assert.equal(bay?.lon, -122.3965);
+  assert.equal(bay?.label, "M 4.2 - San Francisco Bay");
+});
+
+test("geoFromCoords does not pin depth as latitude when depth is a legal lat", () => {
+  // 8.4 km is a legal latitude. Using coordinates[2] as lat would silently
+  // move this Mediterranean pin to the Gulf of Guinea.
+  const rome = geoFromCoords([12.5, 41.9, 8.4], "Rome");
+  assert.equal(rome?.lat, 41.9);
+  assert.equal(rome?.lon, 12.5);
+  const extra = geoFromCoords([12.5, 41.9, 8.4, 99], "Rome");
+  assert.equal(extra?.lat, 41.9);
+  assert.equal(extra?.lon, 12.5);
+});
+
+test("geoFromCoords unwraps nested rings that carry altitude", () => {
+  const nws = geoFromCoords(
+    [
+      [
+        [-45.5, -23.1, 0],
+        [-45.6, -23.2, 0],
+      ],
+    ],
+    "South Atlantic",
+  );
+  assert.equal(nws?.lat, -23.1);
+  assert.equal(nws?.lon, -45.5);
+});
