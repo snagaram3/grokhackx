@@ -25,6 +25,43 @@ test("geoFromCoords and geoPoint reject junk instead of inventing a pin", () => 
   assert.equal(geoPoint(35.68, 139.69, "   "), undefined);
 });
 
+test("geoPoint keeps pins on the poles and date line", () => {
+  const north = geoPoint(90, 0, "North Pole");
+  assert.equal(north?.lat, 90);
+  assert.equal(north?.lon, 0);
+  assert.equal(north?.label, "North Pole");
+
+  const south = geoPoint(-90, 45, "South Pole");
+  assert.equal(south?.lat, -90);
+  assert.equal(south?.lon, 45);
+
+  const east = geoPoint(-21.2, 180, "Tonga");
+  assert.equal(east?.lat, -21.2);
+  assert.equal(east?.lon, 180);
+
+  const west = geoPoint(64.5, -180, "Chukotka");
+  assert.equal(west?.lat, 64.5);
+  assert.equal(west?.lon, -180);
+
+  const corner = geoPoint(90, 180, "Pole on the date line");
+  assert.equal(corner?.lat, 90);
+  assert.equal(corner?.lon, 180);
+});
+
+test("geoFromCoords keeps GeoJSON date-line and pole Positions", () => {
+  const tonga = geoFromCoords([180, -21.2], "Tonga");
+  assert.equal(tonga?.lat, -21.2);
+  assert.equal(tonga?.lon, 180);
+
+  const west = geoFromCoords([-180, 64.5], "Chukotka");
+  assert.equal(west?.lat, 64.5);
+  assert.equal(west?.lon, -180);
+
+  const pole = geoFromCoords([-45, 90], "North Pole");
+  assert.equal(pole?.lat, 90);
+  assert.equal(pole?.lon, -45);
+});
+
 test("geoPoint trims and caps the place label at 80 chars", () => {
   const long = "A".repeat(120);
   const geo = geoPoint(35.68, 139.69, `  ${long}  `);
