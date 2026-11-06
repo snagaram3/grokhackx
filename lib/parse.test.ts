@@ -40,6 +40,58 @@ test("QR image URLs decode data/text/chl and ignore ordinary pages", () => {
   assert.equal(payloadFromQrImageUrl("not a url"), null);
 });
 
+test("QR chart payloads cap at 500 chars after trim, not the raw query string", () => {
+  const landing = "https://camry.example/fit";
+  const exact = landing + "x".repeat(500 - landing.length);
+  const overflow = `${exact}!`;
+  assert.equal(exact.length, 500);
+  assert.equal(overflow.length, 501);
+
+  assert.equal(
+    payloadFromQrImageUrl(`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(exact)}`),
+    exact,
+  );
+
+  const dataCap = payloadFromQrImageUrl(
+    `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(overflow)}`,
+  );
+  assert.equal(dataCap, exact);
+  assert.notEqual(dataCap, overflow);
+  assert.notEqual(dataCap, null);
+
+  const textCap = payloadFromQrImageUrl(
+    `https://api.qrserver.com/v1/create-qr-code/?text=${encodeURIComponent(overflow)}`,
+  );
+  assert.equal(textCap, exact);
+
+  const chlCap = payloadFromQrImageUrl(
+    `https://chart.googleapis.com/chart?cht=qr&chl=${encodeURIComponent(overflow)}`,
+  );
+  assert.equal(chlCap, exact);
+
+  assert.equal(
+    payloadFromQrImageUrl(
+      `https://chart.googleapis.com/chart?cht=qr&chl=${encodeURIComponent(`  ${exact}  `)}`,
+    ),
+    exact,
+  );
+
+  const hashes = "#".repeat(500);
+  const hashesOverflow = `${hashes}!`;
+  assert.equal(
+    payloadFromQrImageUrl(
+      `https://api.qrserver.com/v1/create-qr-code/?text=${encodeURIComponent(hashes)}`,
+    ),
+    hashes,
+  );
+  assert.equal(
+    payloadFromQrImageUrl(
+      `https://api.qrserver.com/v1/create-qr-code/?text=${encodeURIComponent(hashesOverflow)}`,
+    ),
+    hashes,
+  );
+});
+
 test("zod schemas clamp X volume and reject empty cluster lists", () => {
   assert.equal(xTrendSchema.parse({ topic: "Camry", volume: 140 }).volume, 100);
   assert.equal(xTrendSchema.parse({ topic: "Camry", volume: -4 }).volume, 0);
