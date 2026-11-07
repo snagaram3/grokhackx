@@ -1,5 +1,9 @@
 const IMAGE_RE = /\.(png|jpe?g)(\?|$)/i;
 
+/** Image fetch abort. Distinct from public-API FEED_MS (8s) and Gemini chat (55s). */
+export const DECODE_QR_MS = 2_500;
+export const QR_IMAGE_ACCEPT = "image/png,image/jpeg";
+
 /** Payload encoded in a QR *image URL* (chart APIs), not guessed from title text. */
 export function payloadFromQrImageUrl(url: string): string | null {
   try {
@@ -50,11 +54,11 @@ export async function decodeQrFromImageUrl(url: string): Promise<string | null> 
   if (fromUrl) return fromUrl;
   if (!isQrImageUrl(url)) return null;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 2500);
+  const timer = setTimeout(() => ctrl.abort(), DECODE_QR_MS);
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { accept: "image/png,image/jpeg" },
+      headers: { accept: QR_IMAGE_ACCEPT },
     });
     if (!res.ok) return null;
     const type = res.headers.get("content-type") ?? "";
