@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  TAPE_WATCH_KEY,
   diffSnapshots,
   ingestTape,
   mergeWatchStores,
@@ -26,6 +27,12 @@ function snap(id: string, at: string, receipts: number): TapeSnapshot {
     at,
   };
 }
+
+test("TAPE_WATCH_KEY is the v1 localStorage slot, not watchlist", () => {
+  assert.equal(TAPE_WATCH_KEY, "hawkxai:tape-watch:v1");
+  assert.equal(TAPE_WATCH_KEY.includes("watchlist"), false);
+  assert.equal(TAPE_WATCH_KEY.endsWith(":v0"), false);
+});
 
 test("mergeWatchStores unions ids and keeps the later snap", () => {
   const local: TapeWatchStore = {
