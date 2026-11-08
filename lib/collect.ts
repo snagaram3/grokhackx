@@ -12,9 +12,10 @@ import type {
   TrendsPayload,
 } from "./types";
 
-const COLLECT_MS = 2500;
+/** Desk collect+forecast abort. Distinct from hourly LOOKUP_MS (25s) and public-API FEED_MS (8s). */
+export const COLLECT_MS = 2500;
 
-function withTimeout<T>(job: Promise<T>, ms: number): Promise<T> {
+export function withTimeout<T>(job: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("collect timeout")), ms);
     job.then(

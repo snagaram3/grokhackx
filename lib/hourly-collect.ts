@@ -9,7 +9,8 @@ import type { TrendsPayload } from "./types";
 import { listWatchlist } from "./watchlist-store";
 
 const PHRASE_CAP = 4;
-const LOOKUP_MS = 25_000;
+/** Hourly /api/trends lookup abort. Distinct from desk COLLECT_MS (2.5s). */
+export const LOOKUP_MS = 25_000;
 
 export interface HourlyCollectResult {
   backend: "memory" | "postgres";
@@ -43,7 +44,8 @@ export function uniquePhrases(values: Array<string | null | undefined>): string[
   return out;
 }
 
-async function lookupTape(origin: string, phrase: string): Promise<TrendsPayload | null> {
+/** Topic tape lookup. 503/404 is null and does not invent a watchlist snap. */
+export async function lookupTape(origin: string, phrase: string): Promise<TrendsPayload | null> {
   const url = `${origin}/api/trends?topic=${encodeURIComponent(phrase)}`;
   const res = await fetch(url, {
     signal: AbortSignal.timeout(LOOKUP_MS),
