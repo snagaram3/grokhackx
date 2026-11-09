@@ -53,5 +53,6 @@ test("filterTrendItems keeps only phrase hits and dedupes URLs", () => {
 
 test("trendsRssGeos uses the city YouTube region, world uses five geos", () => {
   assert.deepEqual(trendsRssGeos("tokyo"), ["JP"]);
-  assert.equal(trendsRssGeos("all").length, 5);
+  assert.deepEqual(trendsRssGeos("all"), ["US", "GB", "IN", "JP", "BR"]);
+  assert.deepEqual(trendsRssGeos(), ["US", "GB", "IN", "JP", "BR"]);
 });

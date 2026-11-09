@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { categoryForTape } from "./collect";
-import { uniquePhrases } from "./hourly-collect";
+import { hourBucket, uniquePhrases } from "./hourly-collect";
 import type { BoosterTopicBrief, Topic, TrendsPayload } from "./types";
 
 function topic(id: string, label: string, extra: Partial<Topic> = {}): Topic {
@@ -99,4 +99,16 @@ test("categoryForTape prefers query category, then the lead brief, then classify
     ),
     "markets",
   );
+});
+
+test("hourBucket floors to UTC so snapshot ids do not split around local midnight", () => {
+  assert.equal(hourBucket(new Date("2026-11-08T10:37:12.500Z")), "2026-11-08T10:00:00.000Z");
+  assert.equal(hourBucket("2026-11-09T00:37:12.500Z"), "2026-11-09T00:00:00.000Z");
+  assert.equal(hourBucket("2026-11-08T23:59:59.999Z"), "2026-11-08T23:00:00.000Z");
+  assert.equal(hourBucket("2026-11-08T10:00:00.000Z"), "2026-11-08T10:00:00.000Z");
+  const hour = hourBucket("2026-11-08T10:37:12.500Z");
+  assert.equal(`${hour}|Toyota Camry`, "2026-11-08T10:00:00.000Z|Toyota Camry");
+  assert.equal(`${hour}|tape`, "2026-11-08T10:00:00.000Z|tape");
+  // Invalid Date throws — do not copy example-poi's iso.slice NaN fallback.
+  assert.throws(() => hourBucket("not-a-date"), RangeError);
 });

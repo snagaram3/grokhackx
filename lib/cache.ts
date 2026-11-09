@@ -1,4 +1,5 @@
-const TTL_MS = 15 * 60 * 1000;
+/** Tape cache TTL. Distinct from GDELT 10min world cache and hourly LOOKUP_MS 25s. */
+export const TTL_MS = 15 * 60 * 1000;
 
 interface Entry<T> {
   value: T;

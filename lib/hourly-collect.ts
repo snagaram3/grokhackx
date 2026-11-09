@@ -21,7 +21,8 @@ export interface HourlyCollectResult {
   snapshots: number;
 }
 
-function hourBucket(at = new Date()): string {
+/** UTC hour used as `${hour}|phrase` snapshotId. Local timezone would duplicate/miss around midnight. */
+export function hourBucket(at = new Date()): string {
   const d = new Date(at);
   d.setUTCMinutes(0, 0, 0);
   d.setUTCMilliseconds(0);
