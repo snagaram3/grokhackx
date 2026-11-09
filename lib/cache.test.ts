@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cacheGet, cachePeek, cacheSet } from "./cache";
+import { TTL_MS, cacheGet, cachePeek, cacheSet } from "./cache";
 
-const TTL_MS = 15 * 60 * 1000;
+test("tape cache TTL is 15 minutes, not GDELT 10min or hourly lookup 25s", () => {
+  assert.equal(TTL_MS, 15 * 60 * 1000);
+  assert.ok(TTL_MS > 10 * 60 * 1000);
+  assert.ok(TTL_MS > 25_000);
+});
 
 test("cacheGet misses unknown keys and cachePeek still reads a just-set value", () => {
   const key = `cache-test:${Date.now()}:miss`;
